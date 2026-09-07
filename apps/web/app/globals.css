@@ -1,0 +1,831 @@
+/* ---------------------------------------------------------------------------
+   Design tokens.
+
+   Two palettes, one set of names. Dark is the default (a voice call is usually
+   a focused, low-light context); light follows the OS preference. Every colour
+   used anywhere in the app resolves through one of these, so a theme change is
+   a change to this block only.
+--------------------------------------------------------------------------- */
+:root {
+  color-scheme: dark;
+
+  --bg: #08090d;
+  --bg-glow-a: rgba(110, 231, 183, 0.14);
+  --bg-glow-b: rgba(99, 102, 241, 0.13);
+
+  --panel: rgba(21, 24, 33, 0.72);
+  --panel-solid: #151821;
+  --panel-raised: #1b1f2b;
+  --border: rgba(255, 255, 255, 0.09);
+  --border-strong: rgba(255, 255, 255, 0.16);
+
+  --fg: #f2f3f5;
+  --fg-muted: #98a0ad;
+  --fg-subtle: #6a7280;
+
+  --accent: #6ee7b7;
+  --accent-strong: #34d399;
+  --accent-contrast: #05231a;
+  --accent-soft: rgba(110, 231, 183, 0.14);
+
+  --info: #818cf8;
+  --danger: #f87171;
+  --danger-soft: rgba(248, 113, 113, 0.12);
+
+  --radius-sm: 0.5rem;
+  --radius: 0.85rem;
+  --radius-lg: 1.25rem;
+
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 12px 40px -12px rgba(0, 0, 0, 0.7);
+  --shadow-glow: 0 0 0 1px var(--accent-soft), 0 8px 32px -8px rgba(52, 211, 153, 0.35);
+
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    color-scheme: light;
+
+    --bg: #f6f7f9;
+    --bg-glow-a: rgba(16, 185, 129, 0.12);
+    --bg-glow-b: rgba(99, 102, 241, 0.1);
+
+    --panel: rgba(255, 255, 255, 0.82);
+    --panel-solid: #ffffff;
+    --panel-raised: #ffffff;
+    --border: rgba(9, 12, 20, 0.1);
+    --border-strong: rgba(9, 12, 20, 0.18);
+
+    --fg: #0d1117;
+    --fg-muted: #59616e;
+    --fg-subtle: #858d99;
+
+    --accent: #0f9d76;
+    --accent-strong: #0b8062;
+    --accent-contrast: #ffffff;
+    --accent-soft: rgba(15, 157, 118, 0.12);
+
+    --info: #4f46e5;
+    --danger: #dc2626;
+    --danger-soft: rgba(220, 38, 38, 0.1);
+
+    --shadow: 0 1px 2px rgba(9, 12, 20, 0.06), 0 12px 32px -16px rgba(9, 12, 20, 0.25);
+    --shadow-glow: 0 0 0 1px var(--accent-soft), 0 8px 28px -10px rgba(15, 157, 118, 0.3);
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+  background: var(--bg);
+  color: var(--fg);
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
+  font-size: 16px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Two soft off-screen light sources. Fixed, so they don't move as panels scroll. */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(60rem 40rem at 12% -10%, var(--bg-glow-a), transparent 65%),
+    radial-gradient(50rem 38rem at 96% 8%, var(--bg-glow-b), transparent 60%);
+}
+
+main {
+  position: relative;
+  z-index: 1;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(1rem, 4vw, 2.5rem);
+}
+
+h1,
+h2,
+h3 {
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+a {
+  color: var(--fg-muted);
+  text-decoration: none;
+  transition: color 0.15s var(--ease);
+}
+
+a:hover {
+  color: var(--fg);
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* --- Surfaces ------------------------------------------------------------ */
+
+.card {
+  width: 100%;
+  max-width: 30rem;
+  background: var(--panel);
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: clamp(1.5rem, 4vw, 2.25rem);
+  box-shadow: var(--shadow);
+  animation: rise 0.5s var(--ease) both;
+}
+
+.card h1 {
+  margin: 0 0 0.5rem;
+  font-size: clamp(1.4rem, 4vw, 1.75rem);
+}
+
+.card > p {
+  color: var(--fg-muted);
+  margin: 0 0 1.5rem;
+}
+
+.panel {
+  background: var(--panel);
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.1rem 1.25rem;
+  box-shadow: var(--shadow);
+}
+
+.panel-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin: 0 0 0.85rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--fg-subtle);
+}
+
+.eyebrow {
+  display: inline-block;
+  margin-bottom: 0.75rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+
+/* --- Forms and buttons --------------------------------------------------- */
+
+.field {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.field label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--fg-muted);
+}
+
+input[type='text'] {
+  width: 100%;
+  padding: 0.75rem 0.85rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-strong);
+  background: var(--panel-solid);
+  color: var(--fg);
+  font: inherit;
+  transition:
+    border-color 0.15s var(--ease),
+    box-shadow 0.15s var(--ease);
+}
+
+input[type='text']::placeholder {
+  color: var(--fg-subtle);
+}
+
+input[type='text']:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  padding: 0.7rem 1.1rem;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  transition:
+    transform 0.12s var(--ease),
+    filter 0.15s var(--ease),
+    background 0.15s var(--ease);
+}
+
+button:hover:not(:disabled) {
+  filter: brightness(1.07);
+}
+
+button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+button.ghost {
+  background: transparent;
+  border-color: var(--border-strong);
+  color: var(--fg-muted);
+}
+
+button.ghost:hover:not(:disabled) {
+  color: var(--fg);
+  border-color: var(--fg-subtle);
+  filter: none;
+}
+
+button.danger {
+  background: var(--danger-soft);
+  border-color: transparent;
+  color: var(--danger);
+}
+
+.primary-action {
+  width: 100%;
+  margin-top: 1.25rem;
+  padding: 0.8rem 1.1rem;
+}
+
+.error-text {
+  color: var(--danger);
+  margin-top: 0.75rem;
+  font-size: 0.875rem;
+}
+
+/* --- Room layout --------------------------------------------------------- */
+
+.room-shell {
+  width: 100%;
+  max-width: 62rem;
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+  grid-template-areas:
+    'stage  progress'
+    'stage  transcript';
+  align-content: start;
+  animation: rise 0.5s var(--ease) both;
+}
+
+.room-stage {
+  grid-area: stage;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.room-progress {
+  grid-area: progress;
+}
+
+.room-transcript {
+  grid-area: transcript;
+  min-height: 0;
+}
+
+@media (max-width: 56rem) {
+  .room-shell {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      'stage'
+      'progress'
+      'transcript';
+    max-width: 34rem;
+  }
+}
+
+/* --- Agent stage --------------------------------------------------------- */
+
+.stage {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.25rem;
+  padding: 2rem 1.25rem;
+  min-height: 17rem;
+  background: var(--panel);
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+/* A halo behind the visualiser that brightens while the agent talks, so the
+   state is readable from across the room without reading the label. */
+.stage::after {
+  content: '';
+  position: absolute;
+  top: 45%;
+  left: 50%;
+  width: 22rem;
+  height: 22rem;
+  translate: -50% -50%;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--accent-soft), transparent 62%);
+  opacity: 0.35;
+  transition: opacity 0.4s var(--ease);
+  pointer-events: none;
+}
+
+.stage[data-state='speaking']::after {
+  opacity: 1;
+}
+
+.stage[data-state='thinking']::after {
+  opacity: 0.6;
+  animation: pulse-halo 1.6s ease-in-out infinite;
+}
+
+@keyframes pulse-halo {
+  50% {
+    opacity: 0.25;
+  }
+}
+
+/* Themed through LiveKit's own custom properties rather than by overriding
+   `.lk-audio-bar`: the vendor rule for the speaking state
+   (`.lk-audio-bar-visualizer[data-lk-va-state='speaking'] > .lk-audio-bar`) is more
+   specific than anything we could write at this level, so a background override
+   here would be silently dropped at exactly the moment the agent talks. */
+.visualizer {
+  position: relative;
+  width: min(100%, 22rem);
+  height: 6.5rem;
+
+  --lk-bg: transparent;
+  --lk-va-bar-width: 10px;
+  --lk-va-bar-gap: 12px;
+  --lk-va-bar-border-radius: 999px;
+  /* Idle bars. */
+  --lk-va-bar-bg: var(--border-strong);
+  /* Bars the visualiser highlights — i.e. the agent's live level. */
+  --lk-fg: var(--accent);
+}
+
+.status-pill {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.9rem;
+  border-radius: 999px;
+  background: var(--panel-raised);
+  border: 1px solid var(--border);
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--fg-muted);
+}
+
+.status-pill .dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: var(--fg-subtle);
+  transition: background 0.25s var(--ease);
+}
+
+.status-pill[data-state='speaking'] .dot,
+.status-pill[data-state='listening'] .dot {
+  background: var(--accent);
+}
+
+.status-pill[data-state='listening'] .dot {
+  animation: blip 1.8s ease-in-out infinite;
+}
+
+.status-pill[data-state='thinking'] .dot {
+  background: var(--info);
+  animation: blip 0.9s ease-in-out infinite;
+}
+
+@keyframes blip {
+  50% {
+    opacity: 0.3;
+  }
+}
+
+.controls-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+  justify-content: center;
+}
+
+/* `StartAudio` renders LiveKit's own button, whose colours come from theme
+   variables that are only defined under `[data-lk-theme]` — unset here, so it
+   would paint transparent-on-transparent. Given its own look instead. */
+.lk-start-audio-button {
+  align-self: center;
+  padding: 0.7rem 1.1rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: var(--shadow-glow);
+}
+
+.lk-start-audio-button:not(:disabled):hover {
+  background: var(--accent-strong);
+}
+
+/* --- Mic control --------------------------------------------------------- */
+
+.mic-toggle {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.7rem 1.1rem;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: var(--panel-raised);
+  color: var(--fg);
+  font-weight: 600;
+  overflow: hidden;
+}
+
+.mic-toggle[data-enabled='false'] {
+  background: var(--danger-soft);
+  border-color: transparent;
+  color: var(--danger);
+}
+
+/* Fills from the left in proportion to measured input level — a live "we can
+   hear you" signal, which is what people actually want from a mic button. */
+.mic-toggle .level {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--accent-soft);
+  transition: width 0.08s linear;
+  pointer-events: none;
+}
+
+.mic-toggle .label,
+.mic-toggle .icon {
+  position: relative;
+}
+
+/* --- Progress stepper ---------------------------------------------------- */
+
+.steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.15rem;
+}
+
+.step {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1.5rem minmax(0, 1fr);
+  gap: 0.75rem;
+  padding-bottom: 0.9rem;
+  transition: opacity 0.3s var(--ease);
+}
+
+.step:last-child {
+  padding-bottom: 0;
+}
+
+/* Connector between markers. Not drawn under the last step. */
+.step:not(:last-child)::before {
+  content: '';
+  position: absolute;
+  left: 0.72rem;
+  top: 1.6rem;
+  bottom: 0.35rem;
+  width: 1px;
+  background: var(--border-strong);
+}
+
+.step[data-status='pending'] {
+  opacity: 0.45;
+}
+
+.step-marker {
+  display: grid;
+  place-items: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 50%;
+  border: 1px solid var(--border-strong);
+  background: var(--panel-raised);
+  font-size: 0.7rem;
+  color: var(--fg-subtle);
+}
+
+.step[data-status='done'] .step-marker {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-contrast);
+}
+
+.step[data-status='active'] .step-marker {
+  border-color: var(--accent);
+  color: var(--accent);
+  box-shadow: var(--shadow-glow);
+  animation: pulse-ring 1.8s ease-in-out infinite;
+}
+
+@keyframes pulse-ring {
+  50% {
+    box-shadow: 0 0 0 5px transparent;
+  }
+}
+
+.step-label {
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+
+.step-detail {
+  margin: 0.1rem 0 0;
+  font-size: 0.82rem;
+  color: var(--fg-muted);
+  overflow-wrap: anywhere;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-top: 0.35rem;
+}
+
+.chip {
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.progress-bar {
+  height: 0.25rem;
+  border-radius: 999px;
+  background: var(--border);
+  overflow: hidden;
+  margin-top: 0.5rem;
+}
+
+.progress-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-strong));
+  transition: width 0.4s var(--ease);
+}
+
+.completion-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  padding: 0.85rem 1rem;
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-soft);
+  animation: rise 0.4s var(--ease) both;
+}
+
+.completion-banner strong {
+  color: var(--accent);
+}
+
+/* --- Transcript ---------------------------------------------------------- */
+
+.transcript-scroll {
+  display: grid;
+  gap: 0.6rem;
+  max-height: 15rem;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scroll-behavior: smooth;
+  padding-right: 0.25rem;
+}
+
+.turn {
+  display: grid;
+  gap: 0.15rem;
+  animation: rise 0.25s var(--ease) both;
+}
+
+.turn-role {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-subtle);
+}
+
+.turn[data-role='agent'] .turn-role {
+  color: var(--accent);
+}
+
+.turn-text {
+  margin: 0;
+  padding: 0.5rem 0.7rem;
+  border-radius: var(--radius-sm);
+  background: var(--panel-raised);
+  border: 1px solid var(--border);
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+}
+
+.turn[data-role='you'] .turn-text {
+  background: var(--accent-soft);
+  border-color: transparent;
+}
+
+.empty-note {
+  margin: 0;
+  color: var(--fg-subtle);
+  font-size: 0.88rem;
+}
+
+/* --- Results page -------------------------------------------------------- */
+
+.results {
+  width: 100%;
+  max-width: 46rem;
+  display: grid;
+  gap: 1rem;
+  animation: rise 0.5s var(--ease) both;
+}
+
+.results-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.results-header h1 {
+  margin: 0;
+  font-size: clamp(1.5rem, 4vw, 2rem);
+}
+
+.badge {
+  padding: 0.2rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: var(--border);
+  color: var(--fg-muted);
+}
+
+.badge[data-status='completed'] {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.badge[data-status='abandoned'] {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: 1rem 1.5rem;
+  margin: 0;
+}
+
+.facts dt {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-subtle);
+}
+
+.facts dd {
+  margin: 0.15rem 0 0;
+  overflow-wrap: anywhere;
+}
+
+.qa {
+  list-style: none;
+  counter-reset: qa;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.9rem;
+}
+
+.qa li {
+  counter-increment: qa;
+  display: grid;
+  grid-template-columns: 1.5rem minmax(0, 1fr);
+  gap: 0.75rem;
+}
+
+.qa li::before {
+  content: counter(qa);
+  display: grid;
+  place-items: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.qa .question {
+  margin: 0;
+  font-weight: 600;
+}
+
+.qa .answer {
+  margin: 0.2rem 0 0;
+  color: var(--fg-muted);
+  overflow-wrap: anywhere;
+}
+
+.summary {
+  margin: 0;
+  padding: 0.9rem 1rem;
+  border-left: 2px solid var(--accent);
+  background: var(--accent-soft);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
