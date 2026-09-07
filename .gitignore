@@ -1,0 +1,15 @@
+node_modules/
+dist/
+.next/
+out/
+.env
+.env.local
+data/*.db
+data/*.db-journal
+data/*.db-wal
+data/*.db-shm
+*.log
+*.tsbuildinfo
+.DS_Store
+coverage/
+.turbo/

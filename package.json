@@ -1,0 +1,31 @@
+{
+  "name": "livekit-interview-scaffold",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "pnpm build:libs && concurrently -k -n agent,web -c blue,green \"pnpm dev:agent\" \"pnpm dev:web\"",
+    "dev:agent": "pnpm --filter @interview/agent dev",
+    "dev:web": "pnpm --filter @interview/web dev",
+    "build:libs": "pnpm --filter @interview/core build && pnpm --filter @interview/db build",
+    "build": "pnpm build:libs && pnpm --filter @interview/agent build && pnpm --filter @interview/web build",
+    "typecheck": "pnpm build:libs && pnpm --filter @interview/web exec next typegen && pnpm -r exec tsc --noEmit",
+    "test": "pnpm -r test",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "db:generate": "pnpm --filter @interview/db generate",
+    "db:migrate": "pnpm --filter @interview/db migrate"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.20.0",
+    "@types/node": "^24.0.0",
+    "concurrently": "^9.0.0",
+    "eslint": "^9.20.0",
+    "prettier": "^3.4.0",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.20.0"
+  },
+  "packageManager": "pnpm@11.25.0",
+  "engines": {
+    "node": ">=22"
+  }
+}
