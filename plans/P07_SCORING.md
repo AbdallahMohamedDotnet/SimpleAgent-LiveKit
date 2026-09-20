@@ -14,8 +14,11 @@ The SQLite queue, leases, immutable snapshots, versioned HR/technical rubrics, a
 assessment validator pass offline tests. Every numeric competency requires an exact span from a
 candidate turn; unknown/interviewer/fabricated evidence and out-of-range scores are rejected.
 Null competencies require a limitation, are excluded from the mean, and remain in coverage.
-Durable result persistence, malformed-output parsing/retries, worker entrypoint, and the keyed
-OpenRouter assessment call remain.
+Durable stage/competency/evidence results, strict malformed-output parsing, bounded retry/final
+failure states, lease renewal/recovery, a text-only OpenRouter adapter, and `interview worker` now
+pass offline. The keyed construction path is verified without a network request. Live Sonnet 5
+access, technical difficulty/assistance calibration, and expanded synthetic calibration fixtures
+remain.
 
 ## Objective and scope
 

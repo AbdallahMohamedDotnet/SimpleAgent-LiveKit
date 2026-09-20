@@ -52,4 +52,5 @@ Available command:
 interview dry-run --name "Candidate Name"
 ```
 
-Planned but unavailable commands are `run`, `worker`, `results`, `cleanup`, and `status`.
+The available commands are the offline `dry-run` lifecycle and the durable `worker` scoring
+process. Planned but unavailable commands are `run`, `results`, `cleanup`, and `status`.

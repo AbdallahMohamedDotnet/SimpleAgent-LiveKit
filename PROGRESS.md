@@ -3,12 +3,12 @@
 Planning package prepared: 20 September 2026. Offline foundation implementation started on the
 same date; no live room/provider interview has been performed.
 
-Current checkpoint: dependency-independent implementation has continued through initial P05–P08
-slices; credentials and physical-device verification are intentionally deferred to the final live
-gates. Finalized LiveKit transcript events, versioned HR/technical interview resources, adaptive
-difficulty, strict evidence-backed scoring validation, a shared recovery budget, and UTC retention
-policy now pass offline. The latest complete quality run passed Ruff formatting/lint, strict mypy
-for 38 source files, and 28 pytest tests in 1.45 seconds.
+Current checkpoint: dependency-independent implementation has continued through P07's durable
+scoring-worker slice and initial P08 policies; credentials and physical-device verification are
+intentionally deferred to the final live gates. Finalized LiveKit transcript events, versioned
+interview/scoring resources, adaptive difficulty, lease-safe result persistence and retries, a
+shared recovery budget, and UTC retention policy pass offline. The latest complete quality run
+passed Ruff formatting/lint, strict mypy for 43 source files, and 31 pytest tests in 1.51 seconds.
 
 Use implementation status NOT_STARTED / IN_PROGRESS / IMPLEMENTED and verification status NOT_RUN / PARTIAL / PASSED / FAILED / BLOCKED separately. A phase is complete only when implemented and its required verification has passed.
 
@@ -21,7 +21,7 @@ Use implementation status NOT_STARTED / IN_PROGRESS / IMPLEMENTED and verificati
 | P04 | IN_PROGRESS | PARTIAL | Provider construction, deadline/idle policies, and supervised finalized-turn persistence pass offline. Provider calls, VAD/barge-in wiring, and real-device verification remain. |
 | P05 | IN_PROGRESS | PARTIAL | Versioned HR Agent instructions/rubric and neutral evidence/injection boundaries pass offline. Dynamic live questioning and provider tests remain. |
 | P06 | IN_PROGRESS | PARTIAL | Versioned technical Agent/rubric, attributed HR context, and evidence-based difficulty/hint policy pass offline. Durable case/hint evidence and live adaptation remain. |
-| P07 | IN_PROGRESS | PARTIAL | Queue leases plus strict competency/evidence validation, null averages, and coverage pass offline. Durable results, worker/retries, and keyed assessor remain. |
+| P07 | IN_PROGRESS | PARTIAL | Durable independent results, strict JSON/evidence validation, bounded retries/final failures, lease renewal/recovery, keyed OpenRouter construction, and the worker command pass offline. Live Sonnet 5 access and calibration remain. |
 | P08 | IN_PROGRESS | PARTIAL | Shared 120-second recovery budget and exact 30-day UTC expiry policy pass. Checkpoints, reconciliation, and deletion workflow remain. |
 | P09 | NOT_STARTED | NOT_RUN | No local implementation or live test performed. |
 | P10 | NOT_STARTED | NOT_RUN | No local implementation or live test performed. |
@@ -375,3 +375,33 @@ their “next step” statements; the summary table and current checkpoint above
   project as its own working tree instead of falling back to `/home/bashmohandes-abdallah/.git`.
 - Added workspace Git configuration that disables parent-folder repository discovery. This keeps
   Cursor focused on `LiveKit_CLI` instead of also reporting the unrelated home-level repository.
+
+### 21 September 2026 — P07 durable scoring worker and result persistence
+
+- Phase and scope: resumed at the first unblocked stop point, P07 durable background scoring.
+  Added a text-only assessment boundary, strict JSON parser, one-task use case, persistent stage,
+  competency, and exact-evidence results, retry/final failure states, lease renewal, and the
+  `interview worker` operator command.
+- Implementation status: IN_PROGRESS. The dependency-independent worker path is implemented;
+  live Sonnet 5 access and broader rubric calibration remain.
+- Verification status: PARTIAL. SQLite restart, malformed-output retry, idempotent result reads,
+  null-aware averaging, exact candidate evidence, final provider failure isolation, pinned SDK
+  construction, and single-worker concurrency passed offline. No provider request was made.
+- Files changed: scoring domain/application/port modules, OpenRouter assessment adapter, system
+  clock, SQLite migration `0004_scoring_results.sql` and repository, worker/CLI/settings, tests,
+  environment example, architecture/status documentation.
+- Checks actually run: Ruff format check PASSED for 84 files; Ruff lint PASSED; strict mypy PASSED
+  for 43 source files; focused scoring/SQLite suite PASSED (9 tests); full pytest PASSED (31 tests
+  in 1.51 seconds); `interview --help` exposed the worker command. The restricted sandbox again
+  stalled on CPython/aiosqlite thread notification, so SQLite test runs used the ordinary host
+  process as previously documented.
+- Offline smoke evidence: `uv run python scripts/p07_scoring_smoke.py` migrated a temporary
+  database, claimed and scored one immutable HR snapshot, persisted a 4.0 average with 1/4
+  coverage and exact candidate evidence, reloaded the identical result through a new repository,
+  and confirmed the succeeded task was not delivered again. It made no provider request.
+- Storage handling: the filesystem was initially full. Only the reproducible project-local uv
+  cache was cleaned; 2,062 cache files were removed. No source, interview data, or user file was
+  deleted.
+- Remaining blockers/next step: inject `OPENROUTER_API_KEY` locally and verify the configured
+  Sonnet 5 model with calibrated HR and technical fixtures. The next dependency-independent plan
+  slice is P08 checkpoint persistence, startup reconciliation, and expiry-aware cleanup.

@@ -3,19 +3,23 @@
 Local Python voice interview application under implementation. Documentation and status were
 last reconciled with the repository on 20 September 2026.
 
-The current offline implementation includes the typed two-stage dry run, SQLite evidence and
-lease persistence, immutable snapshots, synthetic WAV recording manifests, an idempotent HR to
-technical handoff controller, deterministic timing/idle policies, and pinned provider factories.
+The current offline implementation includes the typed two-stage dry run, SQLite evidence,
+immutable snapshots, synthetic WAV recording manifests, an idempotent HR-to-technical handoff,
+deterministic timing policies, and a lease-safe scoring worker with durable independent results.
 The dry run deliberately uses fakes and never contacts a provider:
 
 ```bash
 .tools/bin/uv sync --group dev
 .tools/bin/uv run interview dry-run --name "Candidate Name"
+.tools/bin/uv run python scripts/p07_scoring_smoke.py
 ```
+
+The P07 smoke test uses a temporary SQLite database and deterministic local assessor. It verifies
+the durable scoring path without reading provider credentials or making a network request.
 
 The project currently pins CPython 3.14.x. See `docs/compatibility.md` for the locally verified
 environment and live checks that remain blocked. A local-room voice interview has not yet been
-verified. Current offline gates pass Ruff, strict mypy, and 15 tests. The plans remain the
+verified. Current offline gates pass Ruff, strict mypy, and 31 tests. The plans remain the
 normative specification; implementation and verification status are tracked separately in
 `PROGRESS.md` and summarized at the top of every phase plan.
 
@@ -23,11 +27,13 @@ normative specification; implementation and verification status are tracked sepa
 
 - P00: `IN_PROGRESS / BLOCKED` on physical audio and provider credentials.
 - P01: `IMPLEMENTED / PASSED`.
-- P02–P04: `IN_PROGRESS / PARTIAL`; offline slices pass, live adapters/gates remain.
-- P05–P10: `NOT_STARTED / NOT_RUN`.
+- P02–P08: `IN_PROGRESS / PARTIAL`; implemented offline slices pass while live or later slices
+  remain.
+- P09–P10: `NOT_STARTED / NOT_RUN`.
 
-Only `interview dry-run` is currently available. The production `run`, `worker`, `results`,
-`cleanup`, and `status` commands remain planned.
+`interview dry-run` and `interview worker` are available. The worker requires locally supplied
+OpenRouter configuration; its live provider call is not yet verified. The production `run`,
+`results`, `cleanup`, and `status` commands remain planned.
 
 ## Use with Codex
 

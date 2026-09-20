@@ -21,13 +21,13 @@ A small Protocol at the boundary is sufficient. Do not build a dependency-inject
 
 Create modules when needed, not empty placeholder files for the entire map.
 
-Current implementation: project/tooling, domain models and timing policies, application ports,
-offline lifecycle and handoff use cases, fakes, SQLite migrations/repositories, bounded WAV
-recording, provider construction, settings, bootstrap, CLI dry run, and unit/contract/integration
-tests exist. `application/timing.py`, scoring/recovery/retention/results use cases, production
-LiveKit and web adapters, prompts/rubrics, worker/results/cleanup commands, and acceptance tests do
-not yet exist. `adapters/audio/` currently records supplied observable PCM; it is not connected to
-a real room media source.
+Current implementation: project/tooling, domain models and policies, application ports, offline
+lifecycle/handoff and scoring-worker use cases, fakes, SQLite evidence/result repositories,
+bounded WAV recording, voice and text-assessment provider construction, settings, CLI dry run and
+worker commands, and unit/contract/integration tests exist. Recovery orchestration, retention
+cleanup, results queries/UI, Agent Server/operator run command, and acceptance tests do not yet
+exist. `adapters/audio/` currently records supplied observable PCM; it is not connected to a real
+room media source.
 
 | Path | Responsibility |
 |---|---|
