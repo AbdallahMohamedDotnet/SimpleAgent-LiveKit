@@ -1,0 +1,16 @@
+# Local secrets
+.env
+
+# Python bytecode and tool caches
+__pycache__/
+*.py[cod]
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
+# Project-local environments and tools
+.tools/
+.venv/
+
+# Runtime data, including candidate evidence and recordings
+data/
