@@ -1,7 +1,7 @@
 # Main Plan: Local Voice Interview Agent
 
-Version 2.0 specification. Implementation status reconciled 20 September 2026: P01 is complete,
-P00 and P02–P04 are partial, and P05–P10 have not started. See `PROGRESS.md` for evidence.
+Version 2.0 specification. Implementation status reconciled 21 September 2026: P01 and P09 are
+complete, P00 and P02–P08 are partial, and P10 has not started. See `PROGRESS.md` for evidence.
 
 ## 1. Objective
 
@@ -78,7 +78,7 @@ The sessions do not speak concurrently. The parallel activity is scoring, which 
 | P06 | IN_PROGRESS / PARTIAL | [Technical interview](plans/P06_TECHNICAL.md) | P04–P05 | Adaptive different cases, hints and observed boundaries |
 | P07 | IN_PROGRESS / PARTIAL | [Scoring](plans/P07_SCORING.md) | P02, P05–P06 contracts | Recoverable background assessment, separate scores |
 | P08 | IN_PROGRESS / PARTIAL | [Recovery and retention](plans/P08_RECOVERY_RETENTION.md) | P03–P07 | Two-minute recovery and 30-day expiry |
-| P09 | NOT_STARTED / NOT_RUN | [Results](plans/P09_RESULTS.md) | P07–P08 | Read-only HTML with evidence and recording playback |
+| P09 | IMPLEMENTED / PASSED | [Results](plans/P09_RESULTS.md) | P07–P08 | Read-only HTML with evidence and recording playback |
 | P10 | NOT_STARTED / NOT_RUN | [Acceptance and runbook](plans/P10_ACCEPTANCE.md) | All previous | Verified local workflow and honest final report |
 
 Queue contracts and a fake scoring consumer exist before P07 so P03 can prove nonblocking handoff. P07 replaces the fake with real validated LLM scoring. If a live preflight gate is blocked, dependency-independent implementation may continue with fakes; no corresponding live gate is considered passed.
@@ -91,9 +91,10 @@ Queue contracts and a fake scoring consumer exist before P07 so P03 can prove no
    manifests, snapshots, and queue contracts pass; real room capture remains.
 3. **M3 — Interview (IN_PROGRESS):** offline two-runtime handoff and timing policies pass; LiveKit
    runtime wiring, generated interviewers, and live same-room proof remain.
-4. **M4 — Assessment (NOT_STARTED):** background real scoring and score persistence remain.
-5. **M5 — Operational prototype (NOT_STARTED):** recovery, expiry, results, runbook, and final
-   acceptance remain.
+4. **M4 — Assessment (IN_PROGRESS):** durable offline scoring and score persistence pass; live
+   Sonnet 5 access and calibration remain.
+5. **M5 — Operational prototype (IN_PROGRESS):** offline recovery, expiry, and results pass;
+   production run wiring, the runbook, and final live acceptance remain.
 
 ## 7. Final acceptance
 

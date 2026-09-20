@@ -1,4 +1,4 @@
-from interview_app.settings import ConfigurationError, ScoringSettings, Settings
+from interview_app.settings import ConfigurationError, ResultsSettings, ScoringSettings, Settings
 
 
 def valid_values() -> dict[str, str]:
@@ -71,3 +71,23 @@ def test_scoring_worker_settings_require_only_its_owned_provider_and_store() -> 
     assert settings.openrouter_model == "anthropic/claude-sonnet-5"
     assert settings.poll_interval_seconds == 0.5
     assert "worker-secret" not in repr(settings)
+
+
+def test_results_settings_are_localhost_only() -> None:
+    settings = ResultsSettings.from_mapping({})
+    assert settings.host == "127.0.0.1"
+    assert settings.port == 8080
+
+    try:
+        ResultsSettings.from_mapping({"RESULTS_HOST": "0.0.0.0"})
+    except ConfigurationError as error:
+        assert "fixed at 127.0.0.1" in str(error)
+    else:
+        raise AssertionError("The results viewer must remain localhost-only.")
+
+    try:
+        ResultsSettings.from_mapping({"RESULTS_PORT": "70000"})
+    except ConfigurationError as error:
+        assert "between 0 and 65535" in str(error)
+    else:
+        raise AssertionError("An invalid results port must be rejected.")

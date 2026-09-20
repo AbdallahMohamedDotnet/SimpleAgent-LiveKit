@@ -8,8 +8,14 @@ from collections.abc import Sequence
 from interview_app.application.interview import InvalidCandidateNameError
 from interview_app.bootstrap import build_dry_run_interview
 from interview_app.entrypoints.cleanup import run_cleanup
+from interview_app.entrypoints.results import run_results
 from interview_app.entrypoints.worker import run_worker
-from interview_app.settings import CleanupSettings, ConfigurationError, ScoringSettings
+from interview_app.settings import (
+    CleanupSettings,
+    ConfigurationError,
+    ResultsSettings,
+    ScoringSettings,
+)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -17,7 +23,7 @@ def build_parser() -> argparse.ArgumentParser:
         prog="interview",
         description="Local voice interview operator commands.",
         epilog=(
-            "Planned, not available yet: run, results, status. "
+            "Planned, not available yet: run, status. "
             "The dry-run command is offline and never contacts a provider."
         ),
     )
@@ -37,6 +43,10 @@ def build_parser() -> argparse.ArgumentParser:
     commands.add_parser(
         "cleanup",
         help="Delete interviews and owned artifacts whose 30-day retention has expired.",
+    )
+    commands.add_parser(
+        "results",
+        help="Serve the read-only interview results viewer on 127.0.0.1.",
     )
     return parser
 
@@ -77,6 +87,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"cleanup_deleted={len(report.deleted)}")
         print(f"cleanup_failed={len(report.failed)}")
         return 1 if report.failed else 0
+    if arguments.command == "results":
+        try:
+            results_settings = ResultsSettings.from_mapping(os.environ)
+            run_results(results_settings)
+        except ConfigurationError as error:
+            parser.error(str(error))
+        return 0
     parser.error(f"Unsupported command: {arguments.command}")
 
 

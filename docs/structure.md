@@ -56,12 +56,22 @@ a database transaction. `LocalArtifactStore` deletes only regular files below it
 rejects traversal or symlink paths. The cleanup use case deletes artifacts first, then dependent
 database rows; scoring claims and completions reject expired or deletion-pending interviews.
 
-Available command:
+P09 adds a small `ResultsReader` port with immutable list/detail/media DTOs. Its SQLite adapter
+filters expired and deletion-pending interviews on every query. The web adapter owns presentation
+formatting and HTML escaping, accepts only GET/HEAD, binds through validated localhost-only
+settings, and resolves audio from a stored segment ID before reading a regular non-symlink file
+under the configured recording root. It has no database write surface.
+
+Available commands:
 
 ```text
 interview dry-run --name "Candidate Name"
+interview worker [--once]
+interview cleanup
+interview results
 ```
 
-The available commands are the offline `dry-run` lifecycle, durable `worker` scoring process, and
-retryable `cleanup` retention pass. Planned but unavailable commands are `run`, `results`, and
-`status`. See `docs/retention.md` for startup catch-up and local scheduler instructions.
+The available commands are the offline `dry-run` lifecycle, durable `worker` scoring process,
+retryable `cleanup` retention pass, and localhost-only `results` viewer. Planned but unavailable
+commands are `run` and `status`. See `docs/retention.md` for startup catch-up and local scheduler
+instructions.

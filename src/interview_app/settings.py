@@ -148,3 +148,34 @@ class CleanupSettings:
         if not sqlite_path or not data_root:
             raise ConfigurationError("SQLITE_PATH and RECORDINGS_DIR must not be blank.")
         return cls(sqlite_path=Path(sqlite_path), data_root=Path(data_root))
+
+
+@dataclass(frozen=True, slots=True)
+class ResultsSettings:
+    sqlite_path: Path
+    recordings_root: Path
+    host: str
+    port: int
+
+    @classmethod
+    def from_mapping(cls, values: Mapping[str, str]) -> ResultsSettings:
+        sqlite_path = values.get("SQLITE_PATH", "data/interviews.sqlite3").strip()
+        recordings_root = values.get("RECORDINGS_DIR", "data/recordings").strip()
+        host = values.get("RESULTS_HOST", "127.0.0.1").strip()
+        if not sqlite_path or not recordings_root:
+            raise ConfigurationError("SQLITE_PATH and RECORDINGS_DIR must not be blank.")
+        if host != "127.0.0.1":
+            raise ConfigurationError("RESULTS_HOST is fixed at 127.0.0.1.")
+        raw_port = values.get("RESULTS_PORT", "8080").strip()
+        try:
+            port = int(raw_port)
+        except ValueError as error:
+            raise ConfigurationError("RESULTS_PORT must be an integer.") from error
+        if not 0 <= port <= 65_535:
+            raise ConfigurationError("RESULTS_PORT must be between 0 and 65535.")
+        return cls(
+            sqlite_path=Path(sqlite_path),
+            recordings_root=Path(recordings_root),
+            host=host,
+            port=port,
+        )

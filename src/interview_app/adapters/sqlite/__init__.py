@@ -9,12 +9,14 @@ from interview_app.adapters.sqlite.repositories import (
     SqliteScoreTaskStore,
     SqliteTranscriptStore,
 )
+from interview_app.adapters.sqlite.results import SqliteResultsReader
 
 __all__ = [
     "SqliteDatabase",
     "SqliteInterviewStore",
     "SqliteRecordingManifestStore",
     "SqliteRecoveryStore",
+    "SqliteResultsReader",
     "SqliteRetentionStore",
     "SqliteScoreTaskStore",
     "SqliteTranscriptStore",

@@ -1,6 +1,6 @@
 # P09 — Minimal read-only HTML results
 
-Implementation: **NOT_STARTED**. Verification: **NOT_RUN**. Updated 20 September 2026.
+Implementation: **IMPLEMENTED**. Verification: **PASSED**. Updated 21 September 2026.
 
 **Read first:** [AGENTS.md](../AGENTS.md), [MAIN_PLAN.md](../MAIN_PLAN.md), [ARCHITECTURE.md](../ARCHITECTURE.md), [PROGRESS.md](../PROGRESS.md).
 
@@ -10,9 +10,11 @@ Implementation: **NOT_STARTED**. Verification: **NOT_RUN**. Updated 20 September
 
 ## Current state
 
-No results reader, web adapter, localhost server, templates, result DTOs, protected media route,
-or rendering/security tests exist. Durable transcripts and recording manifests are available as
-future inputs, but scoring and retention contracts from P07–P08 remain prerequisites.
+The read-only result DTO/port, expiry-safe SQLite projection, escaped server-rendered HTML,
+localhost server, list/detail/audio routes, protected owned-root media reader, CLI command, and
+rendering/security tests are implemented. HR and Technical remain separate, pending/failed/null
+states are explicit, evidence links target finalized turns, and recording failures/gaps are shown.
+The offline HTTP smoke and the complete quality suite pass; no provider request was required.
 
 ## Objective and scope
 
@@ -49,7 +51,9 @@ Apply AGENTS.md to this phase. Keep business rules in domain/application code, i
 
 ## Handoff to the next phase
 
-Update PROGRESS.md with implementation status, verification status, changed files, commands actually run, evidence and unresolved risks. Clearly distinguish tested behavior from assumptions. Do not mark this phase complete simply because its files exist.
+P09 is complete. P10 can now exercise the retained local viewer as part of the end-to-end runbook
+and acceptance workflow. Live provider/device evidence remains a project-level blocker recorded
+under the earlier phases; it does not change the verified P09 read-only boundary.
 
 ## Codex task prompt
 

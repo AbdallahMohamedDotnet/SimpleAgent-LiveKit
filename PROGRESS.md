@@ -3,12 +3,12 @@
 Planning package prepared: 20 September 2026. Offline foundation implementation started on the
 same date; no live room/provider interview has been performed.
 
-Current checkpoint: dependency-independent implementation has continued through P08's durable
-recovery and retention slice; credentials and physical-device verification are intentionally
-deferred to the final live gates. Checkpoint/reconciliation contracts, fixed-budget retries,
-expiry-safe score work, retryable owned-artifact cleanup, the cleanup command, and a verified
-user-level daily timer now pass offline. The latest complete quality run passed Ruff
-formatting/lint, strict mypy for 49 source files, and 37 pytest tests in 2.14 seconds.
+Current checkpoint: dependency-independent implementation has continued through P09's read-only
+localhost results viewer; credentials and physical-device verification are intentionally deferred
+to the final live gates. Expiry-safe list/detail/audio reads, escaped server-rendered output,
+explicit pending/failed/null display, protected media IDs, and the `results` command now pass.
+The latest complete quality run passed Ruff formatting/lint, strict mypy for 55 source files, and
+40 pytest tests in 1.73 seconds.
 
 Use implementation status NOT_STARTED / IN_PROGRESS / IMPLEMENTED and verification status NOT_RUN / PARTIAL / PASSED / FAILED / BLOCKED separately. A phase is complete only when implemented and its required verification has passed.
 
@@ -23,7 +23,7 @@ Use implementation status NOT_STARTED / IN_PROGRESS / IMPLEMENTED and verificati
 | P06 | IN_PROGRESS | PARTIAL | Versioned technical Agent/rubric, attributed HR context, and evidence-based difficulty/hint policy pass offline. Durable case/hint evidence and live adaptation remain. |
 | P07 | IN_PROGRESS | PARTIAL | Durable independent results, strict JSON/evidence validation, bounded retries/final failures, lease renewal/recovery, keyed OpenRouter construction, and the worker command pass offline. Live Sonnet 5 access and calibration remain. |
 | P08 | IN_PROGRESS | PARTIAL | Durable checkpoints/reconciliation, one fixed 120-second retry incident, exact expiry, safe retryable cleanup, worker race guards, cleanup CLI, and installed daily user timer pass offline. Live controller/checkpoint wiring and real reconnect/media recovery remain. |
-| P09 | NOT_STARTED | NOT_RUN | No local implementation or live test performed. |
+| P09 | IMPLEMENTED | PASSED | Expiry-safe read DTOs/SQLite projection, escaped list/detail pages, localhost server, ID-authorized media, security tests, CLI startup, and an actual HTTP smoke pass. |
 | P10 | NOT_STARTED | NOT_RUN | No local implementation or live test performed. |
 
 ## Required local inputs
@@ -442,3 +442,32 @@ their “next step” statements; the summary table and current checkpoint above
   audio/credential gate. Provider-side retention remains outside local control.
 - Next ready step: P09 can consume the expiry-safe read boundary for the local results view while
   P08 live wiring remains explicitly blocked on the production run/controller path and live media.
+
+### 21 September 2026 — P09 read-only localhost results viewer
+
+- Phase and scope: added immutable result-query DTOs and a consumer-oriented read-only port,
+  expiry-safe SQLite list/detail/media projections, escaped server-rendered pages, an owned-root
+  WAV reader, localhost HTTP server, and the `interview results` command.
+- Implementation status: IMPLEMENTED. The viewer exposes no write actions, candidate interview UI,
+  combined score, ranking, or hiring recommendation. HR and Technical render independently with
+  conversation/assessment status, null-aware score and coverage, rationale, evidence turn links,
+  transcripts, difficulty/assistance observations, and recording status/gaps/failures.
+- Verification status: PASSED. Tests cover malicious-looking candidate/transcript/LLM/failure
+  strings, duplicate names, active/pending, failed, incomplete, missing-media, exact-boundary
+  expired result/media IDs, traversal attempts, and rejected POST requests.
+- Files changed: result application DTO/port, SQLite and web adapters, results entrypoint and
+  composition, settings/CLI/environment example, P09 tests/smoke, structure/readme/plan/status
+  documentation.
+- Checks actually run: focused Ruff/mypy/P09 tests passed; `scripts/p09_results_smoke.py` started a
+  real ephemeral localhost HTTP server and returned 200 for list/detail/audio plus 405 for POST,
+  with escaped untrusted text and byte-identical ID-authorized media; full Ruff format/lint passed,
+  strict mypy passed for 55 source files, and full pytest passed (40 tests in 1.73 seconds).
+  `interview --help` exposes `results`; a CLI startup probe bound `127.0.0.1` on an ephemeral port.
+- Live room/provider/device evidence: not applicable to the viewer and no provider request was
+  made. Playback used a synthetic local WAV-like fixture; real captured interview audio remains
+  blocked and honestly tracked under P02/P08.
+- Known limitations: case/hint evidence can only be displayed to the extent it has been persisted
+  by earlier stages; current durable assessment difficulty/assistance fields are rendered, while
+  live case capture remains an earlier-phase limitation. P10 live end-to-end acceptance remains.
+- Next ready step: implement P10 runbook/acceptance checks and the still-missing production
+  run/status entrypoints without reclassifying blocked provider/device gates as passed.
