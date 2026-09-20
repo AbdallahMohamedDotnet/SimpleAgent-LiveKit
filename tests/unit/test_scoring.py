@@ -10,6 +10,7 @@ from interview_app.domain.models import (
     TurnRecord,
 )
 from interview_app.domain.scoring import (
+    AssessmentStatus,
     AssessmentValidationError,
     CompetencyAssessment,
     EvidenceCitation,
@@ -80,6 +81,8 @@ def test_scoring_excludes_nulls_and_preserves_coverage() -> None:
     assert result.average == 3.0
     assert result.assessed_count == 2
     assert result.total_count == 4
+    assert result.competencies[0].status is AssessmentStatus.ASSESSED
+    assert result.competencies[2].status is AssessmentStatus.INSUFFICIENT_EVIDENCE
     assert [item.competency for item in result.competencies] == [
         item.key for item in HR_RUBRIC_V1.competencies
     ]

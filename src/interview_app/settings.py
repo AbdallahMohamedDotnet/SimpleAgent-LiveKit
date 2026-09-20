@@ -2,6 +2,7 @@
 
 from collections.abc import Mapping
 from dataclasses import dataclass
+from pathlib import Path
 
 
 class ConfigurationError(ValueError):
@@ -96,4 +97,40 @@ class Settings:
             tech_target_seconds=parsed_numbers["TECH_TARGET_SECONDS"],
             idle_checkin_seconds=parsed_numbers["IDLE_CHECKIN_SECONDS"],
             thinking_hold_seconds=parsed_numbers["THINKING_HOLD_SECONDS"],
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class ScoringSettings:
+    sqlite_path: Path
+    openrouter_api_key: Secret
+    openrouter_model: str
+    worker_id: str
+    poll_interval_seconds: float
+
+    @classmethod
+    def from_mapping(cls, values: Mapping[str, str]) -> ScoringSettings:
+        api_key = values.get("OPENROUTER_API_KEY", "").strip()
+        if not api_key:
+            raise ConfigurationError("Missing required setting: OPENROUTER_API_KEY")
+        model = values.get("OPENROUTER_MODEL", "anthropic/claude-sonnet-5").strip()
+        worker_id = values.get("SCORING_WORKER_ID", "local-scoring-worker").strip()
+        sqlite_path = values.get("SQLITE_PATH", "data/interviews.sqlite3").strip()
+        if not model or not worker_id or not sqlite_path:
+            raise ConfigurationError(
+                "OPENROUTER_MODEL, SCORING_WORKER_ID, and SQLITE_PATH must not be blank."
+            )
+        raw_poll = values.get("SCORING_POLL_SECONDS", "2").strip()
+        try:
+            poll_interval = float(raw_poll)
+        except ValueError as error:
+            raise ConfigurationError("SCORING_POLL_SECONDS must be numeric.") from error
+        if poll_interval <= 0:
+            raise ConfigurationError("SCORING_POLL_SECONDS must be positive.")
+        return cls(
+            sqlite_path=Path(sqlite_path),
+            openrouter_api_key=Secret(api_key),
+            openrouter_model=model,
+            worker_id=worker_id,
+            poll_interval_seconds=poll_interval,
         )

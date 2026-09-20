@@ -53,6 +53,8 @@ class ScoreTaskState(StrEnum):
     PENDING = "pending"
     RUNNING = "running"
     SUCCEEDED = "succeeded"
+    FAILED_RETRYABLE = "failed_retryable"
+    FAILED_FINAL = "failed_final"
 
 
 class RecordingStatus(StrEnum):
@@ -120,6 +122,7 @@ class ScoreTaskRecord:
     lease_expires_at: datetime | None
     created_at: datetime
     completed_at: datetime | None = None
+    failure: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

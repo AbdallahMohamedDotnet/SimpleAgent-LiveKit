@@ -1,4 +1,4 @@
-from interview_app.settings import ConfigurationError, Settings
+from interview_app.settings import ConfigurationError, ScoringSettings, Settings
 
 
 def valid_values() -> dict[str, str]:
@@ -56,3 +56,18 @@ def test_fixed_language_and_timing_cannot_be_silently_changed() -> None:
         assert "fixed at 300" in str(error)
     else:
         raise AssertionError("The fixed interview duration must be enforced.")
+
+
+def test_scoring_worker_settings_require_only_its_owned_provider_and_store() -> None:
+    settings = ScoringSettings.from_mapping(
+        {
+            "OPENROUTER_API_KEY": "worker-secret",
+            "SQLITE_PATH": "data/test.sqlite3",
+            "SCORING_POLL_SECONDS": "0.5",
+        }
+    )
+
+    assert settings.sqlite_path.as_posix() == "data/test.sqlite3"
+    assert settings.openrouter_model == "anthropic/claude-sonnet-5"
+    assert settings.poll_interval_seconds == 0.5
+    assert "worker-secret" not in repr(settings)

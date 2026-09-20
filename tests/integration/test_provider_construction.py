@@ -1,7 +1,7 @@
 import asyncio
 
-from interview_app.adapters.providers import build_voice_providers
-from interview_app.settings import Settings
+from interview_app.adapters.providers import OpenRouterAssessmentModel, build_voice_providers
+from interview_app.settings import Secret, Settings
 
 
 def test_pinned_provider_options_construct_without_network_access() -> None:
@@ -17,12 +17,18 @@ def test_pinned_provider_options_construct_without_network_access() -> None:
             }
         )
         providers = build_voice_providers(settings)
+        assessor = OpenRouterAssessmentModel(
+            api_key=Secret("not-used-for-a-request"),
+            model=settings.openrouter_model,
+        )
         assert providers.llm.model == "anthropic/claude-sonnet-5"
         assert providers.stt.model == "scribe_v2_realtime"
         assert providers.hr_tts.model == "eleven_turbo_v2_5"
         assert providers.technical_tts.model == "eleven_turbo_v2_5"
         assert providers.hr_tts is not providers.technical_tts
+        assert assessor.model_name == "anthropic/claude-sonnet-5"
         await asyncio.gather(
+            assessor.aclose(),
             providers.llm.aclose(),
             providers.stt.aclose(),
             providers.hr_tts.aclose(),

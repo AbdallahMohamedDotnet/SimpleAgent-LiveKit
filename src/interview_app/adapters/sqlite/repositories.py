@@ -43,6 +43,14 @@ from interview_app.domain.models import (
     TurnId,
     TurnRecord,
 )
+from interview_app.domain.scoring import (
+    AssessmentStatus,
+    AssessmentTaskInput,
+    CompetencyAssessment,
+    EvidenceCitation,
+    StageAssessment,
+    StageScoreRecord,
+)
 
 
 def _utc_text(value: datetime) -> str:
@@ -429,13 +437,14 @@ class SqliteScoreTaskStore:
                 """
                 SELECT id FROM score_tasks
                 WHERE
-                    (state = ? AND available_at <= ?)
+                    (state IN (?, ?) AND available_at <= ?)
                     OR (state = ? AND lease_expires_at <= ?)
                 ORDER BY created_at, id
                 LIMIT 1
                 """,
                 (
                     ScoreTaskState.PENDING.value,
+                    ScoreTaskState.FAILED_RETRYABLE.value,
                     now_text,
                     ScoreTaskState.RUNNING.value,
                     now_text,
@@ -464,6 +473,256 @@ class SqliteScoreTaskStore:
             return _score_task(claimed)
 
         return await self._database.write(operation)
+
+    async def load_input(self, task_id: ScoreTaskId) -> AssessmentTaskInput:
+        async def operation(connection: aiosqlite.Connection) -> AssessmentTaskInput:
+            row = await _fetchone(
+                connection,
+                """
+                SELECT
+                    t.id AS task_id, t.snapshot_id, t.rubric_version,
+                    s.stage_id, st.kind AS stage_kind
+                FROM score_tasks AS t
+                JOIN snapshots AS s ON s.id = t.snapshot_id
+                JOIN stages AS st ON st.id = s.stage_id
+                WHERE t.id = ?
+                """,
+                (task_id,),
+            )
+            if row is None:
+                raise ScoreTaskLeaseError(f"Unknown score task: {task_id}")
+            turn_rows = await _fetchall(
+                connection,
+                """
+                SELECT tr.id, tr.stage_id, tr.speaker, tr.text, tr.is_final,
+                       tr.delivery_status, tr.occurred_at
+                FROM turns AS tr
+                JOIN snapshots AS s ON s.stage_id = tr.stage_id
+                WHERE s.id = ? AND tr.is_final = 1
+                ORDER BY tr.occurred_at, tr.id
+                """,
+                (row["snapshot_id"],),
+            )
+            return AssessmentTaskInput(
+                task_id=ScoreTaskId(row["task_id"]),
+                snapshot_id=SnapshotId(row["snapshot_id"]),
+                stage_id=StageId(row["stage_id"]),
+                stage_kind=StageKind(row["stage_kind"]),
+                rubric_version=row["rubric_version"],
+                turns=tuple(_turn(turn_row) for turn_row in turn_rows),
+            )
+
+        return await self._database.read(operation)
+
+    async def renew(
+        self,
+        task_id: ScoreTaskId,
+        *,
+        worker_id: str,
+        now: datetime,
+        lease_duration: timedelta,
+    ) -> ScoreTaskRecord:
+        normalized_worker = worker_id.strip()
+        if not normalized_worker or lease_duration <= timedelta(0):
+            raise ValueError("worker_id and a positive lease_duration are required.")
+        now_utc = now.astimezone(UTC)
+
+        async def operation(connection: aiosqlite.Connection) -> ScoreTaskRecord:
+            row = await _fetchone(connection, "SELECT * FROM score_tasks WHERE id = ?", (task_id,))
+            if row is None:
+                raise ScoreTaskLeaseError(f"Unknown score task: {task_id}")
+            task = _score_task(row)
+            if (
+                task.state is not ScoreTaskState.RUNNING
+                or task.lease_owner != normalized_worker
+                or task.lease_expires_at is None
+                or task.lease_expires_at <= now_utc
+            ):
+                raise ScoreTaskLeaseError("Worker does not hold a current lease for this task.")
+            await connection.execute(
+                "UPDATE score_tasks SET lease_expires_at = ? WHERE id = ?",
+                (_utc_text(now_utc + lease_duration), task_id),
+            )
+            renewed = await _fetchone(
+                connection, "SELECT * FROM score_tasks WHERE id = ?", (task_id,)
+            )
+            if renewed is None:
+                raise RuntimeError("Renewed score task disappeared.")
+            return _score_task(renewed)
+
+        return await self._database.write(operation)
+
+    async def complete_with_result(
+        self,
+        task_id: ScoreTaskId,
+        *,
+        worker_id: str,
+        completed_at: datetime,
+        model: str,
+        assessment: StageAssessment,
+        summary: str | None,
+    ) -> StageScoreRecord:
+        normalized_worker = worker_id.strip()
+        normalized_model = model.strip()
+        if not normalized_worker or not normalized_model:
+            raise ValueError("worker_id and model must not be blank.")
+
+        async def operation(connection: aiosqlite.Connection) -> StageScoreRecord:
+            existing = await _load_stage_score(connection, task_id)
+            row = await _fetchone(connection, "SELECT * FROM score_tasks WHERE id = ?", (task_id,))
+            if row is None:
+                raise ScoreTaskLeaseError(f"Unknown score task: {task_id}")
+            task = _score_task(row)
+            if existing is not None:
+                if task.state is ScoreTaskState.SUCCEEDED:
+                    return existing
+                raise ScoreTaskLeaseError("A result exists for a task not marked succeeded.")
+            if (
+                task.state is not ScoreTaskState.RUNNING
+                or task.lease_owner != normalized_worker
+                or task.lease_expires_at is None
+                or task.lease_expires_at <= completed_at.astimezone(UTC)
+            ):
+                raise ScoreTaskLeaseError("Worker does not hold a current lease for this task.")
+            input_row = await _fetchone(
+                connection,
+                """
+                SELECT s.stage_id FROM snapshots AS s
+                WHERE s.id = ? AND s.rubric_version = ?
+                """,
+                (task.snapshot_id, assessment.rubric_version),
+            )
+            if input_row is None or assessment.rubric_version != task.rubric_version:
+                raise ScoreTaskLeaseError("Assessment does not match the claimed snapshot rubric.")
+            created_text = _utc_text(completed_at)
+            await connection.execute(
+                """
+                INSERT INTO stage_scores(
+                    task_id, snapshot_id, stage_id, rubric_version, model, average,
+                    assessed_count, total_count, summary, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    task_id,
+                    task.snapshot_id,
+                    input_row["stage_id"],
+                    assessment.rubric_version,
+                    normalized_model,
+                    assessment.average,
+                    assessment.assessed_count,
+                    assessment.total_count,
+                    summary,
+                    created_text,
+                ),
+            )
+            for competency in assessment.competencies:
+                if competency.status is None:
+                    raise ValueError("Validated competency status must be explicit.")
+                await connection.execute(
+                    """
+                    INSERT INTO competency_scores(
+                        task_id, competency, status, score, rationale, limitation,
+                        difficulty, assistance
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        task_id,
+                        competency.competency,
+                        competency.status.value,
+                        competency.score,
+                        competency.rationale,
+                        competency.limitation,
+                        competency.difficulty,
+                        competency.assistance,
+                    ),
+                )
+                for ordinal, citation in enumerate(competency.evidence):
+                    await connection.execute(
+                        """
+                        INSERT INTO score_evidence(
+                            task_id, competency, ordinal, turn_id, quote
+                        ) VALUES (?, ?, ?, ?, ?)
+                        """,
+                        (
+                            task_id,
+                            competency.competency,
+                            ordinal,
+                            citation.turn_id,
+                            citation.quote,
+                        ),
+                    )
+            await connection.execute(
+                """
+                UPDATE score_tasks
+                SET state = ?, lease_owner = NULL, lease_expires_at = NULL,
+                    failure = NULL, completed_at = ?
+                WHERE id = ?
+                """,
+                (ScoreTaskState.SUCCEEDED.value, created_text, task_id),
+            )
+            stored = await _load_stage_score(connection, task_id)
+            if stored is None:
+                raise RuntimeError("Stored stage score disappeared.")
+            return stored
+
+        return await self._database.write(operation)
+
+    async def fail(
+        self,
+        task_id: ScoreTaskId,
+        *,
+        worker_id: str,
+        failed_at: datetime,
+        failure: str,
+        retry_at: datetime | None,
+    ) -> ScoreTaskRecord:
+        normalized_worker = worker_id.strip()
+        normalized_failure = failure.strip()
+        if not normalized_worker or not normalized_failure:
+            raise ValueError("worker_id and failure must not be blank.")
+        target = (
+            ScoreTaskState.FAILED_RETRYABLE if retry_at is not None else ScoreTaskState.FAILED_FINAL
+        )
+
+        async def operation(connection: aiosqlite.Connection) -> ScoreTaskRecord:
+            row = await _fetchone(connection, "SELECT * FROM score_tasks WHERE id = ?", (task_id,))
+            if row is None:
+                raise ScoreTaskLeaseError(f"Unknown score task: {task_id}")
+            task = _score_task(row)
+            if (
+                task.state is not ScoreTaskState.RUNNING
+                or task.lease_owner != normalized_worker
+                or task.lease_expires_at is None
+                or task.lease_expires_at <= failed_at.astimezone(UTC)
+            ):
+                raise ScoreTaskLeaseError("Worker does not hold a current lease for this task.")
+            available_at = retry_at or failed_at
+            await connection.execute(
+                """
+                UPDATE score_tasks
+                SET state = ?, lease_owner = NULL, lease_expires_at = NULL,
+                    available_at = ?, failure = ?, completed_at = ?
+                WHERE id = ?
+                """,
+                (
+                    target.value,
+                    _utc_text(available_at),
+                    normalized_failure,
+                    _utc_text(failed_at) if target is ScoreTaskState.FAILED_FINAL else None,
+                    task_id,
+                ),
+            )
+            failed = await _fetchone(
+                connection, "SELECT * FROM score_tasks WHERE id = ?", (task_id,)
+            )
+            if failed is None:
+                raise RuntimeError("Failed score task disappeared.")
+            return _score_task(failed)
+
+        return await self._database.write(operation)
+
+    async def get_result(self, task_id: ScoreTaskId) -> StageScoreRecord | None:
+        return await self._database.read(lambda connection: _load_stage_score(connection, task_id))
 
     async def complete(
         self,
@@ -695,6 +954,64 @@ def _score_task(row: aiosqlite.Row) -> ScoreTaskRecord:
         lease_expires_at=_datetime(row["lease_expires_at"]),
         created_at=created_at,
         completed_at=_datetime(row["completed_at"]),
+        failure=row["failure"],
+    )
+
+
+async def _load_stage_score(
+    connection: aiosqlite.Connection, task_id: ScoreTaskId
+) -> StageScoreRecord | None:
+    row = await _fetchone(connection, "SELECT * FROM stage_scores WHERE task_id = ?", (task_id,))
+    if row is None:
+        return None
+    competency_rows = await _fetchall(
+        connection,
+        "SELECT * FROM competency_scores WHERE task_id = ? ORDER BY rowid",
+        (task_id,),
+    )
+    competencies: list[CompetencyAssessment] = []
+    for competency_row in competency_rows:
+        evidence_rows = await _fetchall(
+            connection,
+            """
+            SELECT turn_id, quote FROM score_evidence
+            WHERE task_id = ? AND competency = ? ORDER BY ordinal
+            """,
+            (task_id, competency_row["competency"]),
+        )
+        competencies.append(
+            CompetencyAssessment(
+                competency=competency_row["competency"],
+                score=competency_row["score"],
+                rationale=competency_row["rationale"],
+                evidence=tuple(
+                    EvidenceCitation(turn_id=TurnId(item["turn_id"]), quote=item["quote"])
+                    for item in evidence_rows
+                ),
+                limitation=competency_row["limitation"],
+                status=AssessmentStatus(competency_row["status"]),
+                difficulty=competency_row["difficulty"],
+                assistance=competency_row["assistance"],
+            )
+        )
+    created_at = _datetime(row["created_at"])
+    if created_at is None:
+        raise ValueError("Stage score created_at must not be null.")
+    return StageScoreRecord(
+        task_id=ScoreTaskId(row["task_id"]),
+        snapshot_id=SnapshotId(row["snapshot_id"]),
+        stage_id=StageId(row["stage_id"]),
+        rubric_version=row["rubric_version"],
+        model=row["model"],
+        assessment=StageAssessment(
+            rubric_version=row["rubric_version"],
+            competencies=tuple(competencies),
+            average=row["average"],
+            assessed_count=int(row["assessed_count"]),
+            total_count=int(row["total_count"]),
+        ),
+        summary=row["summary"],
+        created_at=created_at,
     )
 
 
