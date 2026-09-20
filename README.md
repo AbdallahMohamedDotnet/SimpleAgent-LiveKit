@@ -14,6 +14,7 @@ provider:
 .tools/bin/uv run interview dry-run --name "Candidate Name"
 .tools/bin/uv run python scripts/p07_scoring_smoke.py
 .tools/bin/uv run python scripts/p09_results_smoke.py
+.tools/bin/uv run python scripts/p10_offline_acceptance_smoke.py
 .tools/bin/uv run interview results
 ```
 
@@ -33,13 +34,15 @@ normative specification; implementation and verification status are tracked sepa
 - P02–P08: `IN_PROGRESS / PARTIAL`; implemented offline slices pass while live or later slices
   remain.
 - P09: `IMPLEMENTED / PASSED`.
-- P10: `NOT_STARTED / NOT_RUN`.
+- P10: `IN_PROGRESS / BLOCKED`; the offline acceptance smoke and runbook pass, while production
+  room/audio/provider acceptance remains blocked.
 
 `interview dry-run`, `interview worker`, `interview cleanup`, and `interview results` are available.
 The worker requires locally supplied OpenRouter configuration; its live provider call is not yet
 verified. Cleanup is provider-free and runs the retryable 30-day local retention pass. Results
 binds to `127.0.0.1` and defaults to port 8080. The production `run` and `status` commands remain
-planned.
+planned. See `docs/RUNBOOK.md` for exact runnable commands and `docs/ACCEPTANCE.md` for the honest
+requirement matrix.
 
 ## Use with Codex
 

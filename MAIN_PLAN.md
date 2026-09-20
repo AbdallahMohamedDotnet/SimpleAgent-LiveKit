@@ -1,7 +1,7 @@
 # Main Plan: Local Voice Interview Agent
 
 Version 2.0 specification. Implementation status reconciled 21 September 2026: P01 and P09 are
-complete, P00 and P02–P08 are partial, and P10 has not started. See `PROGRESS.md` for evidence.
+complete; P00, P02–P08, and P10 are partial or blocked. See `PROGRESS.md` for evidence.
 
 ## 1. Objective
 
@@ -79,7 +79,7 @@ The sessions do not speak concurrently. The parallel activity is scoring, which 
 | P07 | IN_PROGRESS / PARTIAL | [Scoring](plans/P07_SCORING.md) | P02, P05–P06 contracts | Recoverable background assessment, separate scores |
 | P08 | IN_PROGRESS / PARTIAL | [Recovery and retention](plans/P08_RECOVERY_RETENTION.md) | P03–P07 | Two-minute recovery and 30-day expiry |
 | P09 | IMPLEMENTED / PASSED | [Results](plans/P09_RESULTS.md) | P07–P08 | Read-only HTML with evidence and recording playback |
-| P10 | NOT_STARTED / NOT_RUN | [Acceptance and runbook](plans/P10_ACCEPTANCE.md) | All previous | Verified local workflow and honest final report |
+| P10 | IN_PROGRESS / BLOCKED | [Acceptance and runbook](plans/P10_ACCEPTANCE.md) | All previous | Verified local workflow and honest final report |
 
 Queue contracts and a fake scoring consumer exist before P07 so P03 can prove nonblocking handoff. P07 replaces the fake with real validated LLM scoring. If a live preflight gate is blocked, dependency-independent implementation may continue with fakes; no corresponding live gate is considered passed.
 

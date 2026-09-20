@@ -1,6 +1,6 @@
 # P10 — End-to-end acceptance and Ubuntu runbook
 
-Implementation: **NOT_STARTED**. Verification: **NOT_RUN**. Updated 20 September 2026.
+Implementation: **IN_PROGRESS**. Verification: **BLOCKED**. Updated 21 September 2026.
 
 **Read first:** [AGENTS.md](../AGENTS.md), [MAIN_PLAN.md](../MAIN_PLAN.md), [ARCHITECTURE.md](../ARCHITECTURE.md), [PROGRESS.md](../PROGRESS.md).
 
@@ -10,11 +10,12 @@ Implementation: **NOT_STARTED**. Verification: **NOT_RUN**. Updated 20 September
 
 ## Current state
 
-The current offline quality baseline passes Ruff formatting/lint, strict mypy for 28 source files,
-and 15 pytest tests, including architecture, persistence, synthetic WAV/failure, handoff, timing, and
-provider-construction checks. This is not end-to-end acceptance. `docs/RUNBOOK.md` and
-`docs/ACCEPTANCE.md` do not exist, P05–P09 are unimplemented, and every physical audio/provider
-gate remains blocked or unverified.
+The Ubuntu runbook, R01–R19 acceptance matrix, and aggregate provider-free smoke are implemented.
+The smoke exercises the ordered fake lifecycle plus real temporary SQLite scoring,
+recovery/retention, and localhost HTTP results workflows. The complete offline quality baseline
+passes Ruff formatting/lint, strict mypy for 55 source files, and 40 pytest tests. This is not
+end-to-end voice acceptance: the production ROOM Agent Server/controller and terminal RTC client
+are absent, while physical audio and provider credentials/access remain blocked or unverified.
 
 ## Objective and scope
 

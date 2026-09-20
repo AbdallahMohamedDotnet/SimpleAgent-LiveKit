@@ -3,12 +3,12 @@
 Planning package prepared: 20 September 2026. Offline foundation implementation started on the
 same date; no live room/provider interview has been performed.
 
-Current checkpoint: dependency-independent implementation has continued through P09's read-only
-localhost results viewer; credentials and physical-device verification are intentionally deferred
-to the final live gates. Expiry-safe list/detail/audio reads, escaped server-rendered output,
-explicit pending/failed/null display, protected media IDs, and the `results` command now pass.
-The latest complete quality run passed Ruff formatting/lint, strict mypy for 55 source files, and
-40 pytest tests in 1.73 seconds.
+Current checkpoint: P10 now has a tested Ubuntu runbook, R01–R19 acceptance matrix, and aggregate
+provider-free acceptance smoke. The smoke passes the ordered fake lifecycle plus real temporary
+SQLite scoring, recovery/retention, and localhost HTTP results workflows. Production Agent Server,
+terminal RTC audio, physical-device, and live-provider acceptance remain blocked and are not
+claimed as passes. The latest complete quality run passed Ruff formatting/lint, strict mypy for 55
+source files, and 40 pytest tests in 1.66 seconds.
 
 Use implementation status NOT_STARTED / IN_PROGRESS / IMPLEMENTED and verification status NOT_RUN / PARTIAL / PASSED / FAILED / BLOCKED separately. A phase is complete only when implemented and its required verification has passed.
 
@@ -24,7 +24,7 @@ Use implementation status NOT_STARTED / IN_PROGRESS / IMPLEMENTED and verificati
 | P07 | IN_PROGRESS | PARTIAL | Durable independent results, strict JSON/evidence validation, bounded retries/final failures, lease renewal/recovery, keyed OpenRouter construction, and the worker command pass offline. Live Sonnet 5 access and calibration remain. |
 | P08 | IN_PROGRESS | PARTIAL | Durable checkpoints/reconciliation, one fixed 120-second retry incident, exact expiry, safe retryable cleanup, worker race guards, cleanup CLI, and installed daily user timer pass offline. Live controller/checkpoint wiring and real reconnect/media recovery remain. |
 | P09 | IMPLEMENTED | PASSED | Expiry-safe read DTOs/SQLite projection, escaped list/detail pages, localhost server, ID-authorized media, security tests, CLI startup, and an actual HTTP smoke pass. |
-| P10 | NOT_STARTED | NOT_RUN | No local implementation or live test performed. |
+| P10 | IN_PROGRESS | BLOCKED | Runbook, acceptance matrix, aggregate offline smoke, and quality gates pass. Production ROOM Agent Server/terminal RTC client and live audio/provider gates remain blocked. |
 
 ## Required local inputs
 
@@ -471,3 +471,39 @@ their “next step” statements; the summary table and current checkpoint above
   live case capture remains an earlier-phase limitation. P10 live end-to-end acceptance remains.
 - Next ready step: implement P10 runbook/acceptance checks and the still-missing production
   run/status entrypoints without reclassifying blocked provider/device gates as passed.
+
+### 21 September 2026 — P10 offline acceptance and Ubuntu runbook slice
+
+- Phase and scope: added the tested Ubuntu operator runbook, an R01–R19/final-scenario acceptance
+  ledger, and an aggregate provider-free smoke for every currently runnable workflow.
+- Implementation status: IN_PROGRESS. Documentation and offline acceptance automation are
+  implemented; the production ROOM Agent Server/controller and terminal RTC candidate remain
+  earlier-phase implementation gaps.
+- Verification status: BLOCKED overall. The offline smoke and all quality gates PASSED, while no
+  physical microphone/speaker track, ElevenLabs stream, OpenRouter Sonnet 5 request, or complete
+  live interview could be run in this environment.
+- Files changed: `scripts/p10_offline_acceptance_smoke.py`, `docs/RUNBOOK.md`,
+  `docs/ACCEPTANCE.md`, `README.md`, `MAIN_PLAN.md`, `plans/P10_ACCEPTANCE.md`, and this ledger.
+- Decisions/ADRs: no architecture change. The aggregate smoke invokes the existing production
+  SQLite/repository, recovery/retention, and HTTP adapters in temporary directories, strips
+  provider keys from child processes, and explicitly reports `live_audio_verified: false`.
+- Checks actually run and outcomes:
+  - `uv run python scripts/p10_offline_acceptance_smoke.py`: PASSED after correcting the smoke's
+    expected lifecycle event name from `drained` to the actual typed `draining`; it verified the
+    finished ordered two-stage lifecycle, succeeded/restartable score, two-attempt recovery,
+    exact-boundary artifact deletion, results list/detail/media HTTP 200, POST 405, and escaped
+    untrusted HTML. No provider request was made.
+  - `uv run ruff format --check .`: PASSED, 105 files already formatted.
+  - `uv run ruff check .`: PASSED.
+  - `uv run mypy src`: PASSED for 55 source files.
+  - `uv run pytest`: PASSED, 40 tests in 1.66 seconds, including the architecture import check.
+- Live room/provider/device evidence: none added. The prior media-disabled same-room probe remains
+  signaling/lifecycle evidence only. A final recheck found `/dev/snd` and ALSA capture/playback
+  devices, but the locked `sounddevice` import still failed because PortAudio is unavailable. No
+  audio was recorded or played. Provider credentials and both voice IDs remain unset.
+- Known limitations or blocked checks: real terminal audio, production dispatch/startup, live
+  handoff/audio ownership, barge-in, provider access, slow-HR-scoring concurrency, real reconnect,
+  recording alignment, and strong/weak/assisted/incomplete provider calibration remain blocked.
+- Next ready step: implement the production ROOM Agent Server/controller and terminal RTC client
+  in the earliest owning phases, then rerun the live P10 scenarios on a host with devices and
+  locally supplied credentials. P10 must remain `IN_PROGRESS / BLOCKED` until those gates pass.
