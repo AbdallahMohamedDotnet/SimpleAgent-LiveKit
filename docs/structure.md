@@ -46,11 +46,22 @@ WAV playback is covered offline, while observable LiveKit capture remains blocke
 mapping lives only in `adapters/providers/`; constructing those adapters performs no provider
 request and is not evidence of account/model/voice access.
 
+P08 adds durable recovery checkpoints and connection-attempt history through
+`SqliteRecoveryStore`. `RecoverInterview` owns the fixed retry deadline and preserves remaining
+active time; `ReconcileInterruptedInterviews` distinguishes resumable checkpoints from missing or
+expired recovery state. Live job/controller wiring remains separate from these tested contracts.
+
+`SqliteRetentionStore` prepares retryable deletion manifests without doing filesystem work inside
+a database transaction. `LocalArtifactStore` deletes only regular files below its owned root and
+rejects traversal or symlink paths. The cleanup use case deletes artifacts first, then dependent
+database rows; scoring claims and completions reject expired or deletion-pending interviews.
+
 Available command:
 
 ```text
 interview dry-run --name "Candidate Name"
 ```
 
-The available commands are the offline `dry-run` lifecycle and the durable `worker` scoring
-process. Planned but unavailable commands are `run`, `results`, `cleanup`, and `status`.
+The available commands are the offline `dry-run` lifecycle, durable `worker` scoring process, and
+retryable `cleanup` retention pass. Planned but unavailable commands are `run`, `results`, and
+`status`. See `docs/retention.md` for startup catch-up and local scheduler instructions.

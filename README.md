@@ -31,9 +31,10 @@ normative specification; implementation and verification status are tracked sepa
   remain.
 - P09–P10: `NOT_STARTED / NOT_RUN`.
 
-`interview dry-run` and `interview worker` are available. The worker requires locally supplied
-OpenRouter configuration; its live provider call is not yet verified. The production `run`,
-`results`, `cleanup`, and `status` commands remain planned.
+`interview dry-run`, `interview worker`, and `interview cleanup` are available. The worker requires
+locally supplied OpenRouter configuration; its live provider call is not yet verified. Cleanup is
+provider-free and runs the retryable 30-day local retention pass. The production `run`, `results`,
+and `status` commands remain planned.
 
 ## Use with Codex
 

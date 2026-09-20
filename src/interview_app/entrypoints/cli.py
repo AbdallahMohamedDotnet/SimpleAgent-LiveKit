@@ -7,8 +7,9 @@ from collections.abc import Sequence
 
 from interview_app.application.interview import InvalidCandidateNameError
 from interview_app.bootstrap import build_dry_run_interview
+from interview_app.entrypoints.cleanup import run_cleanup
 from interview_app.entrypoints.worker import run_worker
-from interview_app.settings import ConfigurationError, ScoringSettings
+from interview_app.settings import CleanupSettings, ConfigurationError, ScoringSettings
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -16,7 +17,7 @@ def build_parser() -> argparse.ArgumentParser:
         prog="interview",
         description="Local voice interview operator commands.",
         epilog=(
-            "Planned, not available yet: run, results, cleanup, status. "
+            "Planned, not available yet: run, results, status. "
             "The dry-run command is offline and never contacts a provider."
         ),
     )
@@ -32,6 +33,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--once",
         action="store_true",
         help="Check for one task and exit instead of polling continuously.",
+    )
+    commands.add_parser(
+        "cleanup",
+        help="Delete interviews and owned artifacts whose 30-day retention has expired.",
     )
     return parser
 
@@ -51,8 +56,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
     if arguments.command == "worker":
         try:
-            settings = ScoringSettings.from_mapping(os.environ)
-            outcome = asyncio.run(run_worker(settings, once=bool(arguments.once)))
+            scoring_settings = ScoringSettings.from_mapping(os.environ)
+            outcome = asyncio.run(run_worker(scoring_settings, once=bool(arguments.once)))
         except ConfigurationError as error:
             parser.error(str(error))
         if outcome is None:
@@ -62,6 +67,16 @@ def main(argv: Sequence[str] | None = None) -> int:
             if outcome.result is not None:
                 print(f"score_task_id={outcome.result.task_id}")
         return 0
+    if arguments.command == "cleanup":
+        try:
+            cleanup_settings = CleanupSettings.from_mapping(os.environ)
+            report = asyncio.run(run_cleanup(cleanup_settings))
+        except ConfigurationError as error:
+            parser.error(str(error))
+        print(f"cleanup_prepared={report.prepared}")
+        print(f"cleanup_deleted={len(report.deleted)}")
+        print(f"cleanup_failed={len(report.failed)}")
+        return 1 if report.failed else 0
     parser.error(f"Unsupported command: {arguments.command}")
 
 

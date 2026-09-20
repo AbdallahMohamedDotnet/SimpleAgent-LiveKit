@@ -3,12 +3,12 @@
 Planning package prepared: 20 September 2026. Offline foundation implementation started on the
 same date; no live room/provider interview has been performed.
 
-Current checkpoint: dependency-independent implementation has continued through P07's durable
-scoring-worker slice and initial P08 policies; credentials and physical-device verification are
-intentionally deferred to the final live gates. Finalized LiveKit transcript events, versioned
-interview/scoring resources, adaptive difficulty, lease-safe result persistence and retries, a
-shared recovery budget, and UTC retention policy pass offline. The latest complete quality run
-passed Ruff formatting/lint, strict mypy for 43 source files, and 31 pytest tests in 1.51 seconds.
+Current checkpoint: dependency-independent implementation has continued through P08's durable
+recovery and retention slice; credentials and physical-device verification are intentionally
+deferred to the final live gates. Checkpoint/reconciliation contracts, fixed-budget retries,
+expiry-safe score work, retryable owned-artifact cleanup, the cleanup command, and a verified
+user-level daily timer now pass offline. The latest complete quality run passed Ruff
+formatting/lint, strict mypy for 49 source files, and 37 pytest tests in 2.14 seconds.
 
 Use implementation status NOT_STARTED / IN_PROGRESS / IMPLEMENTED and verification status NOT_RUN / PARTIAL / PASSED / FAILED / BLOCKED separately. A phase is complete only when implemented and its required verification has passed.
 
@@ -22,7 +22,7 @@ Use implementation status NOT_STARTED / IN_PROGRESS / IMPLEMENTED and verificati
 | P05 | IN_PROGRESS | PARTIAL | Versioned HR Agent instructions/rubric and neutral evidence/injection boundaries pass offline. Dynamic live questioning and provider tests remain. |
 | P06 | IN_PROGRESS | PARTIAL | Versioned technical Agent/rubric, attributed HR context, and evidence-based difficulty/hint policy pass offline. Durable case/hint evidence and live adaptation remain. |
 | P07 | IN_PROGRESS | PARTIAL | Durable independent results, strict JSON/evidence validation, bounded retries/final failures, lease renewal/recovery, keyed OpenRouter construction, and the worker command pass offline. Live Sonnet 5 access and calibration remain. |
-| P08 | IN_PROGRESS | PARTIAL | Shared 120-second recovery budget and exact 30-day UTC expiry policy pass. Checkpoints, reconciliation, and deletion workflow remain. |
+| P08 | IN_PROGRESS | PARTIAL | Durable checkpoints/reconciliation, one fixed 120-second retry incident, exact expiry, safe retryable cleanup, worker race guards, cleanup CLI, and installed daily user timer pass offline. Live controller/checkpoint wiring and real reconnect/media recovery remain. |
 | P09 | NOT_STARTED | NOT_RUN | No local implementation or live test performed. |
 | P10 | NOT_STARTED | NOT_RUN | No local implementation or live test performed. |
 
@@ -405,3 +405,40 @@ their “next step” statements; the summary table and current checkpoint above
 - Remaining blockers/next step: inject `OPENROUTER_API_KEY` locally and verify the configured
   Sonnet 5 model with calibrated HR and technical fixtures. The next dependency-independent plan
   slice is P08 checkpoint persistence, startup reconciliation, and expiry-aware cleanup.
+
+### 21 September 2026 — P08 durable recovery and retention slice
+
+- Phase and scope: added durable recovery checkpoints and connection-attempt history, a
+  transient/permanent recovery coordinator with one persisted 120-second deadline, restart
+  reconciliation, exact-boundary expiry guards, retryable owned-artifact deletion, the
+  `interview cleanup` command, startup/scheduler operations documentation, and a daily user timer.
+- Implementation status: IN_PROGRESS. The dependency-independent recovery/retention contracts and
+  local cleanup process are implemented. Automatic checkpoint writes from the unfinished live
+  interview controller and actual track/participant/recorder rebinding remain.
+- Verification status: PARTIAL. Fake-clock recovery/resume/timeout/permanent-failure/restart tests,
+  SQLite restart state, exact 30-day deletion, filesystem-failure retry, path traversal/symlink
+  rejection, and cleanup-versus-running-worker behavior passed offline. No provider, microphone,
+  or live media reconnect was exercised.
+- Files changed: recovery/retention domain records and application ports/use cases, safe local
+  artifact adapter, SQLite migration `0005_recovery_retention.sql` and repositories, cleanup
+  settings/entrypoint/CLI, P08 smoke script, focused integration tests, scheduler/structure
+  documentation, environment example, P08 plan, README, and this ledger.
+- Checks actually run: Ruff format check PASSED for 94 files; Ruff lint PASSED; strict mypy PASSED
+  for 49 source files; full pytest PASSED (37 tests in 2.14 seconds); focused P08/P07/SQLite tests
+  PASSED (8 tests before the final expanded suite); `interview --help` exposed cleanup; an isolated
+  empty-database CLI cleanup returned 0 prepared/deleted/failed.
+- Offline smoke evidence: `uv run python scripts/p08_recovery_retention_smoke.py` resumed the same
+  HR stage after one transient failure with 201 active seconds preserved, recorded a changed room
+  SID and explicit cut-off question reference, deleted one interview at the exact retention
+  boundary, removed its WAV/manifest directory, and made no provider request.
+- Scheduler evidence: installed and enabled `interview-cleanup.timer` under the current user's
+  systemd manager. Unit verification accepted the new service/timer (while reporting an unrelated
+  pre-existing `spice-vdagent.service` warning). A manual service run completed successfully with
+  0 prepared, 0 deleted, and 0 failed; the timer is active with its next daily run scheduled.
+- Known limitations/blockers: live checkpoint emission after every final turn/state transition is
+  not yet connected because the production job controller is unfinished; startup must invoke
+  reconciliation/cleanup when that entrypoint exists. Real room loss, participant/track rebind,
+  cut-off question delivery decisions, and recorder segment rollover require the deferred host
+  audio/credential gate. Provider-side retention remains outside local control.
+- Next ready step: P09 can consume the expiry-safe read boundary for the local results view while
+  P08 live wiring remains explicitly blocked on the production run/controller path and live media.

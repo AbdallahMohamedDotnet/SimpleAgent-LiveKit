@@ -154,3 +154,9 @@ class RetentionPolicy:
         if now.tzinfo is None:
             raise ValueError("Current time must be timezone-aware.")
         return now.astimezone(UTC) >= self.expires_at(interview_started_at)
+
+    def expired_start_cutoff(self, *, now: datetime) -> datetime:
+        """Return the newest interview start that is already expired."""
+        if now.tzinfo is None:
+            raise ValueError("Current time must be timezone-aware.")
+        return now.astimezone(UTC) - self._duration

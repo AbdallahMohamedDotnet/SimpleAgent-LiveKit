@@ -16,10 +16,16 @@ from interview_app.application.ports.interview_store import (
     InterviewStateConflictError,
 )
 from interview_app.application.ports.recording import RecordingLifecycleError
+from interview_app.application.ports.recovery_store import RecoveryStateError
 from interview_app.application.ports.score_task_store import ScoreTaskLeaseError
 from interview_app.application.ports.transcript_store import EvidenceConflictError
 from interview_app.domain.models import (
+    ConnectionAttempt,
+    DeletionJob,
+    DeletionJobState,
     DeliveryStatus,
+    EventId,
+    InterruptedInterview,
     InterviewId,
     InterviewRecord,
     InterviewState,
@@ -29,6 +35,7 @@ from interview_app.domain.models import (
     RecordingSegment,
     RecordingSegmentId,
     RecordingStatus,
+    RecoveryCheckpoint,
     ScoreTaskId,
     ScoreTaskRecord,
     ScoreTaskState,
@@ -43,6 +50,7 @@ from interview_app.domain.models import (
     TurnId,
     TurnRecord,
 )
+from interview_app.domain.policies import RetentionPolicy
 from interview_app.domain.scoring import (
     AssessmentStatus,
     AssessmentTaskInput,
@@ -61,6 +69,9 @@ def _utc_text(value: datetime) -> str:
 
 def _datetime(value: str | None) -> datetime | None:
     return datetime.fromisoformat(value) if value is not None else None
+
+
+_RETENTION_POLICY = RetentionPolicy()
 
 
 class SqliteInterviewStore:
@@ -114,15 +125,28 @@ class SqliteInterviewStore:
 
         await self._database.write(operation)
 
-    async def get(self, interview_id: InterviewId) -> InterviewRecord:
+    async def get(
+        self,
+        interview_id: InterviewId,
+        *,
+        now: datetime | None = None,
+    ) -> InterviewRecord:
         async def operation(connection: aiosqlite.Connection) -> InterviewRecord:
+            cutoff = _utc_text(_RETENTION_POLICY.expired_start_cutoff(now=now or datetime.now(UTC)))
             row = await _fetchone(
                 connection,
-                "SELECT * FROM interviews WHERE id = ?",
-                (interview_id,),
+                """
+                SELECT interview.* FROM interviews AS interview
+                WHERE interview.id = ? AND interview.created_at > ?
+                  AND NOT EXISTS (
+                      SELECT 1 FROM deletion_jobs AS deletion
+                      WHERE deletion.interview_id = interview.id
+                  )
+                """,
+                (interview_id, cutoff),
             )
             if row is None:
-                raise InterviewNotFoundError(f"Unknown interview: {interview_id}")
+                raise InterviewNotFoundError(f"Unknown or expired interview: {interview_id}")
             return _interview(row)
 
         return await self._database.read(operation)
@@ -135,9 +159,16 @@ class SqliteInterviewStore:
         target: InterviewState,
     ) -> InterviewRecord:
         async def operation(connection: aiosqlite.Connection) -> InterviewRecord:
+            cutoff = _utc_text(_RETENTION_POLICY.expired_start_cutoff(now=datetime.now(UTC)))
             cursor = await connection.execute(
-                "UPDATE interviews SET state = ? WHERE id = ? AND state = ?",
-                (target.value, interview_id, expected.value),
+                """
+                UPDATE interviews SET state = ?
+                WHERE id = ? AND state = ? AND created_at > ?
+                  AND NOT EXISTS (
+                      SELECT 1 FROM deletion_jobs WHERE deletion_jobs.interview_id = interviews.id
+                  )
+                """,
+                (target.value, interview_id, expected.value, cutoff),
             )
             if cursor.rowcount != 1:
                 row = await _fetchone(
@@ -206,6 +237,7 @@ class SqliteTranscriptStore:
         target: StageState,
     ) -> StageRecord:
         async def operation(connection: aiosqlite.Connection) -> StageRecord:
+            await _ensure_stage_is_retained(connection, stage_id, datetime.now(UTC))
             cursor = await connection.execute(
                 "UPDATE stages SET state = ? WHERE id = ? AND state = ?",
                 (target.value, stage_id, expected.value),
@@ -237,6 +269,7 @@ class SqliteTranscriptStore:
         )
 
         async def operation(connection: aiosqlite.Connection) -> bool:
+            await _ensure_stage_is_retained(connection, event.stage_id, event.occurred_at)
             try:
                 await connection.execute(
                     """
@@ -256,6 +289,7 @@ class SqliteTranscriptStore:
 
     async def append_turn(self, turn: TurnRecord) -> bool:
         async def operation(connection: aiosqlite.Connection) -> bool:
+            await _ensure_stage_is_retained(connection, turn.stage_id, turn.occurred_at)
             frozen = await _fetchone(
                 connection,
                 "SELECT 1 FROM snapshots WHERE stage_id = ? LIMIT 1",
@@ -321,6 +355,7 @@ class SqliteTranscriptStore:
         async def operation(
             connection: aiosqlite.Connection,
         ) -> tuple[TranscriptSnapshot, ScoreTaskRecord]:
+            await _ensure_stage_is_retained(connection, stage_id, created_at)
             stage = await _fetchone(connection, "SELECT id FROM stages WHERE id = ?", (stage_id,))
             if stage is None:
                 raise EvidenceConflictError(f"Unknown stage: {stage_id}")
@@ -435,14 +470,26 @@ class SqliteScoreTaskStore:
             row = await _fetchone(
                 connection,
                 """
-                SELECT id FROM score_tasks
+                SELECT task.id
+                FROM score_tasks AS task
+                JOIN snapshots AS snapshot ON snapshot.id = task.snapshot_id
+                JOIN stages AS stage ON stage.id = snapshot.stage_id
+                JOIN interviews AS interview ON interview.id = stage.interview_id
                 WHERE
-                    (state IN (?, ?) AND available_at <= ?)
-                    OR (state = ? AND lease_expires_at <= ?)
-                ORDER BY created_at, id
+                    interview.created_at > ?
+                    AND NOT EXISTS (
+                        SELECT 1 FROM deletion_jobs AS deletion
+                        WHERE deletion.interview_id = interview.id
+                    )
+                    AND (
+                        (task.state IN (?, ?) AND task.available_at <= ?)
+                        OR (task.state = ? AND task.lease_expires_at <= ?)
+                    )
+                ORDER BY task.created_at, task.id
                 LIMIT 1
                 """,
                 (
+                    _utc_text(_RETENTION_POLICY.expired_start_cutoff(now=now)),
                     ScoreTaskState.PENDING.value,
                     ScoreTaskState.FAILED_RETRYABLE.value,
                     now_text,
@@ -476,6 +523,7 @@ class SqliteScoreTaskStore:
 
     async def load_input(self, task_id: ScoreTaskId) -> AssessmentTaskInput:
         async def operation(connection: aiosqlite.Connection) -> AssessmentTaskInput:
+            await _ensure_task_is_retained(connection, task_id, datetime.now(UTC))
             row = await _fetchone(
                 connection,
                 """
@@ -528,6 +576,7 @@ class SqliteScoreTaskStore:
         now_utc = now.astimezone(UTC)
 
         async def operation(connection: aiosqlite.Connection) -> ScoreTaskRecord:
+            await _ensure_task_is_retained(connection, task_id, now_utc)
             row = await _fetchone(connection, "SELECT * FROM score_tasks WHERE id = ?", (task_id,))
             if row is None:
                 raise ScoreTaskLeaseError(f"Unknown score task: {task_id}")
@@ -568,6 +617,7 @@ class SqliteScoreTaskStore:
             raise ValueError("worker_id and model must not be blank.")
 
         async def operation(connection: aiosqlite.Connection) -> StageScoreRecord:
+            await _ensure_task_is_retained(connection, task_id, completed_at)
             existing = await _load_stage_score(connection, task_id)
             row = await _fetchone(connection, "SELECT * FROM score_tasks WHERE id = ?", (task_id,))
             if row is None:
@@ -685,6 +735,7 @@ class SqliteScoreTaskStore:
         )
 
         async def operation(connection: aiosqlite.Connection) -> ScoreTaskRecord:
+            await _ensure_task_is_retained(connection, task_id, failed_at)
             row = await _fetchone(connection, "SELECT * FROM score_tasks WHERE id = ?", (task_id,))
             if row is None:
                 raise ScoreTaskLeaseError(f"Unknown score task: {task_id}")
@@ -721,8 +772,20 @@ class SqliteScoreTaskStore:
 
         return await self._database.write(operation)
 
-    async def get_result(self, task_id: ScoreTaskId) -> StageScoreRecord | None:
-        return await self._database.read(lambda connection: _load_stage_score(connection, task_id))
+    async def get_result(
+        self,
+        task_id: ScoreTaskId,
+        *,
+        now: datetime | None = None,
+    ) -> StageScoreRecord | None:
+        async def operation(connection: aiosqlite.Connection) -> StageScoreRecord | None:
+            try:
+                await _ensure_task_is_retained(connection, task_id, now or datetime.now(UTC))
+            except ScoreTaskLeaseError:
+                return None
+            return await _load_stage_score(connection, task_id)
+
+        return await self._database.read(operation)
 
     async def complete(
         self,
@@ -737,6 +800,7 @@ class SqliteScoreTaskStore:
         completed_text = _utc_text(completed_at)
 
         async def operation(connection: aiosqlite.Connection) -> ScoreTaskRecord:
+            await _ensure_task_is_retained(connection, task_id, completed_at)
             row = await _fetchone(connection, "SELECT * FROM score_tasks WHERE id = ?", (task_id,))
             if row is None:
                 raise ScoreTaskLeaseError(f"Unknown score task: {task_id}")
@@ -764,6 +828,365 @@ class SqliteScoreTaskStore:
             if completed is None:
                 raise RuntimeError("Completed score task disappeared.")
             return _score_task(completed)
+
+        return await self._database.write(operation)
+
+
+class SqliteRecoveryStore:
+    def __init__(self, database: SqliteDatabase) -> None:
+        self._database = database
+
+    async def save_checkpoint(self, checkpoint: RecoveryCheckpoint) -> None:
+        async def operation(connection: aiosqlite.Connection) -> None:
+            await _ensure_stage_is_retained(connection, checkpoint.stage_id, checkpoint.updated_at)
+            await _upsert_checkpoint(connection, checkpoint)
+
+        await self._database.write(operation)
+
+    async def get_checkpoint(self, interview_id: InterviewId) -> RecoveryCheckpoint | None:
+        async def operation(connection: aiosqlite.Connection) -> RecoveryCheckpoint | None:
+            row = await _fetchone(
+                connection,
+                "SELECT * FROM recovery_checkpoints WHERE interview_id = ?",
+                (interview_id,),
+            )
+            return _checkpoint(row) if row is not None else None
+
+        return await self._database.read(operation)
+
+    async def enter_recovery(
+        self,
+        checkpoint: RecoveryCheckpoint,
+        *,
+        expected: InterviewState,
+    ) -> RecoveryCheckpoint:
+        if expected is InterviewState.RECOVERING:
+            raise ValueError("A new recovery incident needs a non-recovering source state.")
+
+        async def operation(connection: aiosqlite.Connection) -> RecoveryCheckpoint:
+            await _ensure_stage_is_retained(connection, checkpoint.stage_id, checkpoint.updated_at)
+            cursor = await connection.execute(
+                "UPDATE interviews SET state = ? WHERE id = ? AND state = ?",
+                (InterviewState.RECOVERING.value, checkpoint.interview_id, expected.value),
+            )
+            if cursor.rowcount != 1:
+                raise RecoveryStateError(
+                    f"Interview {checkpoint.interview_id} was not in {expected.value}."
+                )
+            await _upsert_checkpoint(connection, checkpoint)
+            return checkpoint
+
+        return await self._database.write(operation)
+
+    async def record_connection_attempt(self, attempt: ConnectionAttempt) -> None:
+        async def operation(connection: aiosqlite.Connection) -> None:
+            try:
+                await connection.execute(
+                    """
+                    INSERT INTO connection_attempts(
+                        id, interview_id, previous_room_sid, connected_room_sid,
+                        attempted_at, succeeded, failure
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        attempt.id,
+                        attempt.interview_id,
+                        attempt.previous_room_sid,
+                        attempt.connected_room_sid,
+                        _utc_text(attempt.attempted_at),
+                        int(attempt.succeeded),
+                        attempt.failure,
+                    ),
+                )
+            except sqlite3.IntegrityError as error:
+                raise RecoveryStateError(
+                    f"Connection attempt cannot be recorded: {attempt.id}"
+                ) from error
+
+        await self._database.write(operation)
+
+    async def resume(self, checkpoint: RecoveryCheckpoint) -> RecoveryCheckpoint:
+        if checkpoint.recovery_deadline_at is not None:
+            raise ValueError("A resumed checkpoint must clear its recovery deadline.")
+
+        async def operation(connection: aiosqlite.Connection) -> RecoveryCheckpoint:
+            await _ensure_stage_is_retained(connection, checkpoint.stage_id, checkpoint.updated_at)
+            cursor = await connection.execute(
+                """
+                UPDATE interviews
+                SET state = ?, room_sid = ?, incomplete_reason = NULL
+                WHERE id = ? AND state = ?
+                """,
+                (
+                    checkpoint.resumable_state.value,
+                    checkpoint.room_sid,
+                    checkpoint.interview_id,
+                    InterviewState.RECOVERING.value,
+                ),
+            )
+            if cursor.rowcount != 1:
+                raise RecoveryStateError("Only a recovering interview can resume.")
+            await _upsert_checkpoint(connection, checkpoint)
+            return checkpoint
+
+        return await self._database.write(operation)
+
+    async def mark_incomplete(
+        self,
+        interview_id: InterviewId,
+        *,
+        reason: str,
+        at: datetime,
+    ) -> None:
+        normalized_reason = reason.strip()
+        if not normalized_reason:
+            raise ValueError("Incomplete reason must not be blank.")
+        _utc_text(at)
+
+        async def operation(connection: aiosqlite.Connection) -> None:
+            cursor = await connection.execute(
+                """
+                UPDATE interviews SET state = ?, incomplete_reason = ?
+                WHERE id = ? AND state NOT IN (?, ?)
+                """,
+                (
+                    InterviewState.INCOMPLETE.value,
+                    normalized_reason,
+                    interview_id,
+                    InterviewState.INTERVIEW_FINISHED.value,
+                    InterviewState.INCOMPLETE.value,
+                ),
+            )
+            if cursor.rowcount != 1:
+                row = await _fetchone(
+                    connection,
+                    "SELECT state FROM interviews WHERE id = ?",
+                    (interview_id,),
+                )
+                if row is None:
+                    raise RecoveryStateError(f"Unknown interview: {interview_id}")
+                if row["state"] != InterviewState.INCOMPLETE.value:
+                    raise RecoveryStateError(
+                        f"Terminal interview cannot be marked incomplete: {row['state']}"
+                    )
+
+        await self._database.write(operation)
+
+    async def list_interrupted(self) -> tuple[InterruptedInterview, ...]:
+        async def operation(connection: aiosqlite.Connection) -> tuple[InterruptedInterview, ...]:
+            cutoff = _utc_text(_RETENTION_POLICY.expired_start_cutoff(now=datetime.now(UTC)))
+            rows = await _fetchall(
+                connection,
+                """
+                SELECT interview.*, checkpoint.interview_id AS checkpoint_interview_id,
+                       checkpoint.stage_id, checkpoint.stage_kind,
+                       checkpoint.resumable_state, checkpoint.remaining_active_seconds,
+                       checkpoint.last_committed_turn_id,
+                       checkpoint.last_committed_event_id,
+                       checkpoint.interrupted_question_turn_id,
+                       checkpoint.room_name AS checkpoint_room_name,
+                       checkpoint.room_sid AS checkpoint_room_sid,
+                       checkpoint.candidate_identity AS checkpoint_candidate_identity,
+                       checkpoint.active_recording_segment_id,
+                       checkpoint.recovery_started_at, checkpoint.recovery_deadline_at,
+                       checkpoint.recovery_attempts, checkpoint.updated_at
+                FROM interviews AS interview
+                LEFT JOIN recovery_checkpoints AS checkpoint
+                    ON checkpoint.interview_id = interview.id
+                WHERE interview.state NOT IN (?, ?)
+                  AND interview.created_at > ?
+                  AND NOT EXISTS (
+                      SELECT 1 FROM deletion_jobs AS deletion
+                      WHERE deletion.interview_id = interview.id
+                  )
+                ORDER BY interview.created_at, interview.id
+                """,
+                (
+                    InterviewState.INTERVIEW_FINISHED.value,
+                    InterviewState.INCOMPLETE.value,
+                    cutoff,
+                ),
+            )
+            return tuple(
+                InterruptedInterview(
+                    interview=_interview(row),
+                    checkpoint=_checkpoint_from_join(row)
+                    if row["checkpoint_interview_id"] is not None
+                    else None,
+                )
+                for row in rows
+            )
+
+        return await self._database.read(operation)
+
+
+class SqliteRetentionStore:
+    def __init__(self, database: SqliteDatabase) -> None:
+        self._database = database
+
+    async def prepare_expired(
+        self,
+        *,
+        expired_at_or_before: datetime,
+        prepared_at: datetime,
+    ) -> tuple[DeletionJob, ...]:
+        cutoff = _utc_text(expired_at_or_before)
+        prepared = _utc_text(prepared_at)
+
+        async def operation(connection: aiosqlite.Connection) -> tuple[DeletionJob, ...]:
+            rows = await _fetchall(
+                connection,
+                """
+                SELECT interview.id
+                FROM interviews AS interview
+                LEFT JOIN deletion_jobs AS deletion ON deletion.interview_id = interview.id
+                WHERE interview.created_at <= ? AND deletion.interview_id IS NULL
+                ORDER BY interview.created_at, interview.id
+                """,
+                (cutoff,),
+            )
+            jobs: list[DeletionJob] = []
+            for row in rows:
+                interview_id = InterviewId(row["id"])
+                artifact_rows = await _fetchall(
+                    connection,
+                    """
+                    SELECT segment.relative_path
+                    FROM recording_segments AS segment
+                    JOIN recordings AS recording ON recording.id = segment.recording_id
+                    WHERE recording.interview_id = ?
+                    ORDER BY segment.relative_path
+                    """,
+                    (interview_id,),
+                )
+                paths = {item["relative_path"] for item in artifact_rows}
+                recording_rows = await _fetchall(
+                    connection,
+                    "SELECT id FROM recordings WHERE interview_id = ? ORDER BY id",
+                    (interview_id,),
+                )
+                paths.update(f"{item['id']}/manifest.json" for item in recording_rows)
+                artifact_paths = tuple(sorted(paths))
+                await connection.execute(
+                    """
+                    INSERT INTO deletion_jobs(
+                        interview_id, state, artifact_paths_json, failed_paths_json,
+                        attempts, last_error, created_at, completed_at
+                    ) VALUES (?, ?, ?, '[]', 0, NULL, ?, NULL)
+                    """,
+                    (
+                        interview_id,
+                        DeletionJobState.PENDING.value,
+                        json.dumps(artifact_paths, separators=(",", ":")),
+                        prepared,
+                    ),
+                )
+                jobs.append(
+                    DeletionJob(
+                        interview_id=interview_id,
+                        state=DeletionJobState.PENDING,
+                        artifact_paths=artifact_paths,
+                        failed_paths=(),
+                        attempts=0,
+                        last_error=None,
+                        created_at=prepared_at.astimezone(UTC),
+                        completed_at=None,
+                    )
+                )
+            return tuple(jobs)
+
+        return await self._database.write(operation)
+
+    async def list_pending(self) -> tuple[DeletionJob, ...]:
+        async def operation(connection: aiosqlite.Connection) -> tuple[DeletionJob, ...]:
+            rows = await _fetchall(
+                connection,
+                """
+                SELECT * FROM deletion_jobs WHERE state IN (?, ?)
+                ORDER BY created_at, interview_id
+                """,
+                (DeletionJobState.PENDING.value, DeletionJobState.FILES_FAILED.value),
+            )
+            return tuple(_deletion_job(row) for row in rows)
+
+        return await self._database.read(operation)
+
+    async def record_file_failure(
+        self,
+        interview_id: InterviewId,
+        *,
+        failed_paths: tuple[str, ...],
+        error: str,
+    ) -> DeletionJob:
+        normalized_error = error.strip()
+        if not failed_paths or not normalized_error:
+            raise ValueError("A file failure needs failed paths and an error.")
+
+        async def operation(connection: aiosqlite.Connection) -> DeletionJob:
+            cursor = await connection.execute(
+                """
+                UPDATE deletion_jobs
+                SET state = ?, failed_paths_json = ?, attempts = attempts + 1, last_error = ?
+                WHERE interview_id = ? AND state IN (?, ?)
+                """,
+                (
+                    DeletionJobState.FILES_FAILED.value,
+                    json.dumps(failed_paths, separators=(",", ":")),
+                    normalized_error,
+                    interview_id,
+                    DeletionJobState.PENDING.value,
+                    DeletionJobState.FILES_FAILED.value,
+                ),
+            )
+            if cursor.rowcount != 1:
+                raise LookupError(f"Unknown pending deletion job: {interview_id}")
+            row = await _fetchone(
+                connection,
+                "SELECT * FROM deletion_jobs WHERE interview_id = ?",
+                (interview_id,),
+            )
+            if row is None:
+                raise RuntimeError("Failed deletion job disappeared.")
+            return _deletion_job(row)
+
+        return await self._database.write(operation)
+
+    async def complete_deletion(
+        self,
+        interview_id: InterviewId,
+        *,
+        completed_at: datetime,
+    ) -> DeletionJob:
+        completed = _utc_text(completed_at)
+
+        async def operation(connection: aiosqlite.Connection) -> DeletionJob:
+            job_row = await _fetchone(
+                connection,
+                "SELECT * FROM deletion_jobs WHERE interview_id = ?",
+                (interview_id,),
+            )
+            if job_row is None:
+                raise LookupError(f"Unknown deletion job: {interview_id}")
+            if job_row["state"] == DeletionJobState.COMPLETE.value:
+                return _deletion_job(job_row)
+            await connection.execute("DELETE FROM interviews WHERE id = ?", (interview_id,))
+            await connection.execute(
+                """
+                UPDATE deletion_jobs
+                SET state = ?, artifact_paths_json = '[]', failed_paths_json = '[]',
+                    attempts = attempts + 1, last_error = NULL, completed_at = ?
+                WHERE interview_id = ?
+                """,
+                (DeletionJobState.COMPLETE.value, completed, interview_id),
+            )
+            row = await _fetchone(
+                connection,
+                "SELECT * FROM deletion_jobs WHERE interview_id = ?",
+                (interview_id,),
+            )
+            if row is None:
+                raise RuntimeError("Completed deletion receipt disappeared.")
+            return _deletion_job(row)
 
         return await self._database.write(operation)
 
@@ -867,6 +1290,205 @@ async def _fetchall(
 ) -> list[aiosqlite.Row]:
     cursor = await connection.execute(query, parameters)
     return list(await cursor.fetchall())
+
+
+async def _ensure_task_is_retained(
+    connection: aiosqlite.Connection,
+    task_id: ScoreTaskId,
+    now: datetime,
+) -> None:
+    now_utc = now.astimezone(UTC)
+    row = await _fetchone(
+        connection,
+        """
+        SELECT interview.created_at,
+               deletion.interview_id AS deletion_interview_id
+        FROM score_tasks AS task
+        JOIN snapshots AS snapshot ON snapshot.id = task.snapshot_id
+        JOIN stages AS stage ON stage.id = snapshot.stage_id
+        JOIN interviews AS interview ON interview.id = stage.interview_id
+        LEFT JOIN deletion_jobs AS deletion ON deletion.interview_id = interview.id
+        WHERE task.id = ?
+        """,
+        (task_id,),
+    )
+    if row is None:
+        raise ScoreTaskLeaseError(f"Unknown score task: {task_id}")
+    started_at = _datetime(row["created_at"])
+    if started_at is None:
+        raise ScoreTaskLeaseError("Score task interview has no start time.")
+    if row["deletion_interview_id"] is not None or _RETENTION_POLICY.is_expired(
+        started_at, now=now_utc
+    ):
+        raise ScoreTaskLeaseError("Score task belongs to an expired interview.")
+
+
+async def _ensure_stage_is_retained(
+    connection: aiosqlite.Connection,
+    stage_id: StageId,
+    now: datetime,
+) -> None:
+    row = await _fetchone(
+        connection,
+        """
+        SELECT interview.created_at,
+               deletion.interview_id AS deletion_interview_id
+        FROM stages AS stage
+        JOIN interviews AS interview ON interview.id = stage.interview_id
+        LEFT JOIN deletion_jobs AS deletion ON deletion.interview_id = interview.id
+        WHERE stage.id = ?
+        """,
+        (stage_id,),
+    )
+    if row is None:
+        raise EvidenceConflictError(f"Unknown stage: {stage_id}")
+    started_at = _datetime(row["created_at"])
+    if started_at is None:
+        raise EvidenceConflictError("Stage interview has no start time.")
+    if row["deletion_interview_id"] is not None or _RETENTION_POLICY.is_expired(
+        started_at, now=now
+    ):
+        raise EvidenceConflictError("Stage belongs to an expired interview.")
+
+
+async def _upsert_checkpoint(
+    connection: aiosqlite.Connection,
+    checkpoint: RecoveryCheckpoint,
+) -> None:
+    if checkpoint.resumable_state not in {
+        InterviewState.HR_ACTIVE,
+        InterviewState.HR_DRAINING,
+        InterviewState.HANDOFF,
+        InterviewState.TECH_ACTIVE,
+        InterviewState.TECH_DRAINING,
+    }:
+        raise ValueError("Checkpoint state is not resumable.")
+    if checkpoint.remaining_active_seconds < 0:
+        raise ValueError("Remaining active time must not be negative.")
+    await connection.execute(
+        """
+        INSERT INTO recovery_checkpoints(
+            interview_id, stage_id, stage_kind, resumable_state,
+            remaining_active_seconds, last_committed_turn_id,
+            last_committed_event_id, interrupted_question_turn_id,
+            room_name, room_sid, candidate_identity, active_recording_segment_id,
+            recovery_started_at, recovery_deadline_at, recovery_attempts, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(interview_id) DO UPDATE SET
+            stage_id = excluded.stage_id,
+            stage_kind = excluded.stage_kind,
+            resumable_state = excluded.resumable_state,
+            remaining_active_seconds = excluded.remaining_active_seconds,
+            last_committed_turn_id = excluded.last_committed_turn_id,
+            last_committed_event_id = excluded.last_committed_event_id,
+            interrupted_question_turn_id = excluded.interrupted_question_turn_id,
+            room_name = excluded.room_name,
+            room_sid = excluded.room_sid,
+            candidate_identity = excluded.candidate_identity,
+            active_recording_segment_id = excluded.active_recording_segment_id,
+            recovery_started_at = excluded.recovery_started_at,
+            recovery_deadline_at = excluded.recovery_deadline_at,
+            recovery_attempts = excluded.recovery_attempts,
+            updated_at = excluded.updated_at
+        """,
+        (
+            checkpoint.interview_id,
+            checkpoint.stage_id,
+            checkpoint.stage_kind.value,
+            checkpoint.resumable_state.value,
+            checkpoint.remaining_active_seconds,
+            checkpoint.last_committed_turn_id,
+            checkpoint.last_committed_event_id,
+            checkpoint.interrupted_question_turn_id,
+            checkpoint.room_name,
+            checkpoint.room_sid,
+            checkpoint.candidate_identity,
+            checkpoint.active_recording_segment_id,
+            _utc_text(checkpoint.recovery_started_at)
+            if checkpoint.recovery_started_at is not None
+            else None,
+            _utc_text(checkpoint.recovery_deadline_at)
+            if checkpoint.recovery_deadline_at is not None
+            else None,
+            checkpoint.recovery_attempts,
+            _utc_text(checkpoint.updated_at),
+        ),
+    )
+
+
+def _checkpoint(row: aiosqlite.Row) -> RecoveryCheckpoint:
+    return _checkpoint_values(
+        row,
+        interview_id_key="interview_id",
+        room_name_key="room_name",
+        room_sid_key="room_sid",
+        candidate_identity_key="candidate_identity",
+    )
+
+
+def _checkpoint_from_join(row: aiosqlite.Row) -> RecoveryCheckpoint:
+    return _checkpoint_values(
+        row,
+        interview_id_key="checkpoint_interview_id",
+        room_name_key="checkpoint_room_name",
+        room_sid_key="checkpoint_room_sid",
+        candidate_identity_key="checkpoint_candidate_identity",
+    )
+
+
+def _checkpoint_values(
+    row: aiosqlite.Row,
+    *,
+    interview_id_key: str,
+    room_name_key: str,
+    room_sid_key: str,
+    candidate_identity_key: str,
+) -> RecoveryCheckpoint:
+    updated_at = _datetime(row["updated_at"])
+    if updated_at is None:
+        raise ValueError("Recovery checkpoint updated_at must not be null.")
+    return RecoveryCheckpoint(
+        interview_id=InterviewId(row[interview_id_key]),
+        stage_id=StageId(row["stage_id"]),
+        stage_kind=StageKind(row["stage_kind"]),
+        resumable_state=InterviewState(row["resumable_state"]),
+        remaining_active_seconds=float(row["remaining_active_seconds"]),
+        last_committed_turn_id=TurnId(row["last_committed_turn_id"])
+        if row["last_committed_turn_id"] is not None
+        else None,
+        last_committed_event_id=EventId(row["last_committed_event_id"])
+        if row["last_committed_event_id"] is not None
+        else None,
+        interrupted_question_turn_id=TurnId(row["interrupted_question_turn_id"])
+        if row["interrupted_question_turn_id"] is not None
+        else None,
+        room_name=row[room_name_key],
+        room_sid=row[room_sid_key],
+        candidate_identity=row[candidate_identity_key],
+        active_recording_segment_id=RecordingSegmentId(row["active_recording_segment_id"])
+        if row["active_recording_segment_id"] is not None
+        else None,
+        recovery_started_at=_datetime(row["recovery_started_at"]),
+        recovery_deadline_at=_datetime(row["recovery_deadline_at"]),
+        recovery_attempts=int(row["recovery_attempts"]),
+        updated_at=updated_at,
+    )
+
+
+def _deletion_job(row: aiosqlite.Row) -> DeletionJob:
+    created_at = _datetime(row["created_at"])
+    if created_at is None:
+        raise ValueError("Deletion job created_at must not be null.")
+    return DeletionJob(
+        interview_id=InterviewId(row["interview_id"]),
+        state=DeletionJobState(row["state"]),
+        artifact_paths=tuple(json.loads(row["artifact_paths_json"])),
+        failed_paths=tuple(json.loads(row["failed_paths_json"])),
+        attempts=int(row["attempts"]),
+        last_error=row["last_error"],
+        created_at=created_at,
+        completed_at=_datetime(row["completed_at"]),
+    )
 
 
 def _interview(row: aiosqlite.Row) -> InterviewRecord:

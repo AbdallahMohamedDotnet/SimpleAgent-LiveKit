@@ -251,6 +251,6 @@ def test_duplicate_conflicts_and_concurrent_short_writes(tmp_path: Path) -> None
             row = await cursor.fetchone()
             return int(row[0])
 
-        assert await database.read(migration_count) == 4
+        assert await database.read(migration_count) == 5
 
     asyncio.run(exercise())

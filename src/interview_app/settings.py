@@ -134,3 +134,17 @@ class ScoringSettings:
             worker_id=worker_id,
             poll_interval_seconds=poll_interval,
         )
+
+
+@dataclass(frozen=True, slots=True)
+class CleanupSettings:
+    sqlite_path: Path
+    data_root: Path
+
+    @classmethod
+    def from_mapping(cls, values: Mapping[str, str]) -> CleanupSettings:
+        sqlite_path = values.get("SQLITE_PATH", "data/interviews.sqlite3").strip()
+        data_root = values.get("RECORDINGS_DIR", "data/recordings").strip()
+        if not sqlite_path or not data_root:
+            raise ConfigurationError("SQLITE_PATH and RECORDINGS_DIR must not be blank.")
+        return cls(sqlite_path=Path(sqlite_path), data_root=Path(data_root))

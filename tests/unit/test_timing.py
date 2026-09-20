@@ -68,3 +68,4 @@ def test_retention_expires_exactly_thirty_utc_days_after_start() -> None:
         now=started + timedelta(days=30) - timedelta(microseconds=1),
     )
     assert policy.is_expired(started, now=started + timedelta(days=30))
+    assert policy.expired_start_cutoff(now=started + timedelta(days=30)) == started

@@ -10,11 +10,13 @@ Implementation: **IN_PROGRESS**. Verification: **PARTIAL**. Updated 20 September
 
 ## Current state
 
-The active-stage timer excludes recovery, task leases can be reclaimed, retries share one fixed
-120-second monotonic recovery budget, and a pure retention policy expires data exactly 30 UTC days
-after interview start. Checkpoint persistence, failure classification/retry orchestration, startup
-reconciliation, expiry-aware reads, deletion workflow, cleanup command, and scheduler
-documentation remain.
+The active-stage timer excludes recovery, retries share one fixed 120-second budget, and durable
+checkpoints preserve stage/time/evidence/room/recording bindings. Transient and permanent recovery
+failures, reconnect attempts, restart reconciliation, exact 30-day expiry, expiry-safe score work,
+retryable owned-file deletion, the cleanup command, and scheduler instructions pass offline tests.
+Automatic checkpoint writes from the unfinished live controller, startup invocation, user timer
+integration, real reconnect/rebind behavior, and live recorder segmentation remain unverified. A
+user-level daily cleanup timer is installed and passed a real zero-work run on this host.
 
 ## Objective and scope
 

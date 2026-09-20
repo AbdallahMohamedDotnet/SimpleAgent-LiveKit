@@ -60,4 +60,9 @@ class ScoreTaskStore(Protocol):
         retry_at: datetime | None,
     ) -> ScoreTaskRecord: ...
 
-    async def get_result(self, task_id: ScoreTaskId) -> StageScoreRecord | None: ...
+    async def get_result(
+        self,
+        task_id: ScoreTaskId,
+        *,
+        now: datetime | None = None,
+    ) -> StageScoreRecord | None: ...

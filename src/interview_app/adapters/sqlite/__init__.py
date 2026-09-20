@@ -4,6 +4,8 @@ from interview_app.adapters.sqlite.database import SqliteDatabase
 from interview_app.adapters.sqlite.repositories import (
     SqliteInterviewStore,
     SqliteRecordingManifestStore,
+    SqliteRecoveryStore,
+    SqliteRetentionStore,
     SqliteScoreTaskStore,
     SqliteTranscriptStore,
 )
@@ -12,6 +14,8 @@ __all__ = [
     "SqliteDatabase",
     "SqliteInterviewStore",
     "SqliteRecordingManifestStore",
+    "SqliteRecoveryStore",
+    "SqliteRetentionStore",
     "SqliteScoreTaskStore",
     "SqliteTranscriptStore",
 ]

@@ -13,6 +13,7 @@ SnapshotId = NewType("SnapshotId", str)
 ScoreTaskId = NewType("ScoreTaskId", str)
 RecordingId = NewType("RecordingId", str)
 RecordingSegmentId = NewType("RecordingSegmentId", str)
+ConnectionAttemptId = NewType("ConnectionAttemptId", str)
 
 
 class InterviewState(StrEnum):
@@ -22,6 +23,7 @@ class InterviewState(StrEnum):
     HANDOFF = "handoff"
     TECH_ACTIVE = "tech_active"
     TECH_DRAINING = "tech_draining"
+    RECOVERING = "recovering"
     INTERVIEW_FINISHED = "interview_finished"
     INCOMPLETE = "incomplete"
 
@@ -67,6 +69,12 @@ class StageEventType(StrEnum):
     STARTED = "started"
     DRAINING = "draining"
     CLOSED = "closed"
+
+
+class DeletionJobState(StrEnum):
+    PENDING = "pending"
+    FILES_FAILED = "files_failed"
+    COMPLETE = "complete"
 
 
 @dataclass(frozen=True, slots=True)
@@ -196,3 +204,52 @@ class StageStartContext:
     room_sid: str
     candidate_identity: str
     handoff: HandoffPayload | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class RecoveryCheckpoint:
+    interview_id: InterviewId
+    stage_id: StageId
+    stage_kind: StageKind
+    resumable_state: InterviewState
+    remaining_active_seconds: float
+    last_committed_turn_id: TurnId | None
+    last_committed_event_id: EventId | None
+    interrupted_question_turn_id: TurnId | None
+    room_name: str
+    room_sid: str
+    candidate_identity: str
+    active_recording_segment_id: RecordingSegmentId | None
+    recovery_started_at: datetime | None
+    recovery_deadline_at: datetime | None
+    recovery_attempts: int
+    updated_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class ConnectionAttempt:
+    id: ConnectionAttemptId
+    interview_id: InterviewId
+    previous_room_sid: str
+    connected_room_sid: str | None
+    attempted_at: datetime
+    succeeded: bool
+    failure: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class InterruptedInterview:
+    interview: InterviewRecord
+    checkpoint: RecoveryCheckpoint | None
+
+
+@dataclass(frozen=True, slots=True)
+class DeletionJob:
+    interview_id: InterviewId
+    state: DeletionJobState
+    artifact_paths: tuple[str, ...]
+    failed_paths: tuple[str, ...]
+    attempts: int
+    last_error: str | None
+    created_at: datetime
+    completed_at: datetime | None
