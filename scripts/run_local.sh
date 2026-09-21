@@ -1,15 +1,22 @@
 #!/usr/bin/env bash
 # Start the locally runnable interview stack from the repository root:
 #   LiveKit dev server -> ROOM Agent Server -> config check -> retention cleanup
-#   -> scoring worker -> results viewer -> operator console -> lifecycle probe.
+#   -> scoring worker -> lifecycle probe.
+# The application has no HTTP surface: run the interview and read results from the terminal
+# with "interview run --name ..." and "interview results ..." in a second shell.
 set -euo pipefail
 
 usage() {
     cat <<'EOF'
 Usage: scripts/run_local.sh [options]
 
-Starts the LiveKit dev server, scoring worker, results viewer and operator console, creates a
-local room with the two sequential AgentSession stages, then keeps services running until Ctrl-C.
+Starts the LiveKit dev server, ROOM Agent Server and scoring worker, creates a local room with
+the two sequential AgentSession stages, then keeps services running until Ctrl-C.
+
+Run the interview itself from a second terminal:
+  uv run interview run --name "Candidate Name"
+  uv run interview status --interview-id ID
+  uv run interview results list
 
 Options:
   --skip-cleanup     Do not run retention cleanup (deletes interviews older than 30 days).
@@ -17,8 +24,6 @@ Options:
   --dry-run NAME     Also run the provider-free two-stage lifecycle for candidate NAME.
   --no-agent         Do not start the ROOM Agent Server.
   --no-worker        Do not start the scoring worker.
-  --no-results       Do not start the results viewer.
-  --no-control       Do not start the operator console.
   --once             Run the room probe (and dry run), then stop everything and exit.
   -h, --help         Show this help.
 
@@ -30,8 +35,6 @@ skip_cleanup=false
 run_probe=true
 run_agent=true
 run_worker=true
-run_results=true
-run_control=true
 exit_after_probe=false
 dry_run_name=""
 
@@ -40,8 +43,6 @@ while (($#)); do
         --skip-cleanup) skip_cleanup=true ;;
         --no-probe) run_probe=false ;;
         --no-worker) run_worker=false ;;
-        --no-results) run_results=false ;;
-        --no-control) run_control=false ;;
         --once) exit_after_probe=true ;;
         --dry-run)
             shift
@@ -172,30 +173,6 @@ fi
 
 if [[ "$run_worker" == true ]]; then
     start_service scoring-worker "$uv_bin" run --frozen interview worker
-fi
-
-if [[ "$run_results" == true ]]; then
-    results_port="$(grep -E '^RESULTS_PORT=' .env | tail -n1 | cut -d= -f2-)"
-    results_port="${RESULTS_PORT:-${results_port:-8080}}"
-    if port_open 127.0.0.1 "$results_port"; then
-        echo "error: 127.0.0.1:$results_port is already in use; stop the other results viewer" >&2
-        exit 1
-    fi
-    start_service results-viewer "$uv_bin" run --frozen interview results
-    wait_for_port 127.0.0.1 "$results_port" "results-viewer" "${pids[-1]}"
-    log "results viewer: http://127.0.0.1:$results_port/results"
-fi
-
-if [[ "$run_control" == true ]]; then
-    control_port="$(grep -E '^CONTROL_PORT=' .env | tail -n1 | cut -d= -f2- || true)"
-    control_port="${CONTROL_PORT:-${control_port:-8090}}"
-    if port_open 127.0.0.1 "$control_port"; then
-        echo "error: 127.0.0.1:$control_port is already in use; stop the other operator console" >&2
-        exit 1
-    fi
-    start_service operator-console "$uv_bin" run --frozen interview control
-    wait_for_port 127.0.0.1 "$control_port" "operator-console" "${pids[-1]}"
-    log "operator console: http://127.0.0.1:$control_port/interviews/new"
 fi
 
 if [[ -n "$dry_run_name" ]]; then

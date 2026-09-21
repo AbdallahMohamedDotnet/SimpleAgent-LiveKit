@@ -2,41 +2,46 @@
 
 from __future__ import annotations
 
-from interview_app.adapters.clock import SystemClock
 from interview_app.adapters.livekit.candidate import (
     CandidateConnection,
     SoundDeviceBackend,
     TerminalCandidateClient,
 )
-from interview_app.adapters.livekit.launcher import LiveKitInterviewLaunchGateway
 from interview_app.adapters.sqlite import SqliteDatabase, SqliteInterviewStore
-from interview_app.application.launch import StartInterview
+from interview_app.application.ports.interview_store import (
+    ActiveInterviewExistsError,
+)
+from interview_app.bootstrap import build_start_interview
 from interview_app.domain.models import InterviewId, InterviewRecord
-from interview_app.settings import ControlSettings
+from interview_app.settings import LaunchSettings
+
+ACTIVE_INTERVIEW_HINT = (
+    "Only one interview can be active at a time. If that interview is still running, finish it "
+    "first. If it was interrupted, restart the background services: the agent server closes "
+    "interrupted interviews as incomplete when it starts."
+)
+
+
+async def ensure_no_active_interview(settings: LaunchSettings) -> None:
+    """Fail before any prompt, device or room work when R03 would reject a new interview."""
+    database = SqliteDatabase(settings.sqlite_path)
+    await database.migrate()
+    active = await SqliteInterviewStore(database).find_active()
+    if active is not None:
+        raise ActiveInterviewExistsError(active.id)
 
 
 async def start_and_join(
-    settings: ControlSettings,
+    settings: LaunchSettings,
     *,
     candidate_name: str,
     input_device: str | None,
     output_device: str | None,
 ) -> InterviewRecord:
     audio = SoundDeviceBackend()
-    database = SqliteDatabase(settings.sqlite_path)
+    database, start_interview = build_start_interview(settings)
     await database.migrate()
-    interviews = SqliteInterviewStore(database)
-    gateway = LiveKitInterviewLaunchGateway(
-        url=settings.livekit_url,
-        api_key=settings.livekit_api_key,
-        api_secret=settings.livekit_api_secret,
-        agent_name=settings.agent_name,
-    )
-    started = await StartInterview(
-        clock=SystemClock(),
-        interviews=interviews,
-        gateway=gateway,
-    ).execute(candidate_name)
+    started = await start_interview.execute(candidate_name)
     await _join(
         settings,
         started.interview,
@@ -48,7 +53,7 @@ async def start_and_join(
 
 
 async def join_existing(
-    settings: ControlSettings,
+    settings: LaunchSettings,
     *,
     interview_id: InterviewId,
     input_device: str | None,
@@ -69,7 +74,7 @@ async def join_existing(
 
 
 async def _join(
-    settings: ControlSettings,
+    settings: LaunchSettings,
     interview: InterviewRecord,
     *,
     input_device: str | None,

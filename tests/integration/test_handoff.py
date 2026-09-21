@@ -52,7 +52,7 @@ def test_handoff_is_ordered_idempotent_and_scoring_independent(tmp_path: Path) -
             room_sid="RM_same",
             candidate_identity="candidate-generated-id",
         )
-        # The operator console persists the durable binding before dispatching
+        # The launch command persists the durable binding before dispatching
         # the Agent Server job; begin must reuse that exact record.
         await interviews.create(interview)
         hr_stage = await controller.begin(interview)

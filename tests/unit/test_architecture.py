@@ -36,3 +36,17 @@ def test_domain_and_application_do_not_import_infrastructure() -> None:
         for path in inspected
     }
     assert not {path: modules for path, modules in violations.items() if modules}
+
+
+def test_no_http_server_surface_remains() -> None:
+    source_root = Path(__file__).parents[2] / "src" / "interview_app"
+    prohibited = ("http.server", "socketserver", "wsgiref", "aiohttp.web")
+
+    offenders = {
+        str(path.relative_to(source_root)): sorted(
+            module for module in imported_modules(path) if module in prohibited
+        )
+        for path in source_root.rglob("*.py")
+    }
+    assert not {path: modules for path, modules in offenders.items() if modules}
+    assert not (source_root / "adapters" / "web").exists()

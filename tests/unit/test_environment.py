@@ -9,7 +9,7 @@ from interview_app.settings import ConfigurationError
 def test_env_file_is_loaded_and_process_environment_takes_precedence(tmp_path: Path) -> None:
     env_file = tmp_path / ".env"
     env_file.write_text(
-        "# local settings\nOPENROUTER_API_KEY=file-secret\nRESULTS_PORT='8080'\n",
+        "# local settings\nOPENROUTER_API_KEY=file-secret\nSCORING_POLL_SECONDS='2'\n",
         encoding="utf-8",
     )
 
@@ -19,7 +19,7 @@ def test_env_file_is_loaded_and_process_environment_takes_precedence(tmp_path: P
     )
 
     assert values["OPENROUTER_API_KEY"] == "process-secret"
-    assert values["RESULTS_PORT"] == "8080"
+    assert values["SCORING_POLL_SECONDS"] == "2"
 
 
 @pytest.mark.parametrize(
