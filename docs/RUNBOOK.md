@@ -3,8 +3,8 @@
 This runbook describes the commands that have actually been exercised in this checkout. The
 ROOM Agent Server, terminal RTC client, and full durable two-stage path are implemented. A
 project-local PortAudio runtime has verified microphone capture through PipeWire, ElevenLabs STT,
-and OpenRouter generation. The current live gate is ElevenLabs TTS billing: the configured account
-returns HTTP 402 `Payment Required`, so audible speaker playback is not yet verified.
+and OpenRouter generation. STT final transcripts and TTS for both voices are verified at the
+provider level; audible speaker playback in a room is not yet verified.
 
 ## Verified toolchain and installation
 
@@ -81,32 +81,10 @@ UV_CACHE_DIR=.tools/uv-cache .tools/bin/uv run interview cleanup
 UV_CACHE_DIR=.tools/uv-cache .tools/bin/uv run interview worker
 ```
 
-Terminal 4 — start the operator console:
+Use `interview worker --once` for one queue poll instead of a continuous worker. A real provider
+call has not yet been verified, so observe its first result before relying on it.
 
-```bash
-UV_CACHE_DIR=.tools/uv-cache .tools/bin/uv run interview control
-```
-
-Open `http://127.0.0.1:8090/interviews/`. Enter the candidate name to create a real local
-LiveKit room, persist generated identities, and send an explicit dispatch to `interview-agent`.
-The status page reports whether the matching agent job and exact candidate participant have
-joined. It also shows finalized HR and technical transcript turns and refreshes every two seconds.
-Its microphone icon reflects whether the terminal audio client is connected, and the page shows
-the exact terminal join command for that interview. It does not capture browser audio; microphone
-and speaker ownership remain in the terminal client.
-
-Terminal 5 — start the results viewer:
-
-```bash
-UV_CACHE_DIR=.tools/uv-cache .tools/bin/uv run interview results
-```
-
-Open `http://127.0.0.1:8080/results`. Both web services are fixed to `127.0.0.1`; neither is a
-candidate interview UI. Use `interview worker --once` for one queue poll instead of a continuous
-worker. A real provider call has not yet been verified, so observe its first result before relying
-on it.
-
-Terminal 6 — list devices, then create and join the interview from the terminal:
+Terminal 4 — list devices, then create and join the interview from the terminal:
 
 ```bash
 LD_LIBRARY_PATH="$PWD/.tools/portaudio/usr/lib/x86_64-linux-gnu" \
@@ -115,11 +93,43 @@ LD_LIBRARY_PATH="$PWD/.tools/portaudio/usr/lib/x86_64-linux-gnu" \
   UV_CACHE_DIR=.tools/uv-cache .tools/bin/uv run interview run --name "Candidate Name"
 ```
 
+`interview run` creates a real local LiveKit room, persists the generated interview and candidate
+identities, sends an explicit dispatch to `interview-agent`, and then joins the room with terminal
+microphone and speaker audio. It prints the generated `interview_id`; keep it for the status,
+results and join commands.
+
 Use `--input-device` and `--output-device` with a device name or numeric index when the system
-defaults are unsuitable. To join a mission already created by the operator console, run
+defaults are unsuitable. To rejoin an interview that already exists, run
 `interview join --interview-id ID`. Stop the terminal participant with `Ctrl-C`.
 
-Terminal 7 — run the available provider-free lifecycle check:
+Terminal 5 — monitor and read results while or after the interview runs:
+
+```bash
+UV_CACHE_DIR=.tools/uv-cache .tools/bin/uv run interview status --interview-id ID
+UV_CACHE_DIR=.tools/uv-cache .tools/bin/uv run interview results list
+UV_CACHE_DIR=.tools/uv-cache .tools/bin/uv run interview results show --interview-id ID
+UV_CACHE_DIR=.tools/uv-cache .tools/bin/uv run interview results recording --segment-id ID
+```
+
+`status` reports whether the matching agent job and the exact candidate participant have joined,
+plus the finalized HR and technical transcript turns. Re-run any command to refresh; there is no
+server and no page to reload.
+
+`results show` prints the HR and technical assessments separately with coverage, per-competency
+rationale, cited evidence turns, transcripts and recording status. Pending, failed and
+unassessed values are printed as such, never as zero. `results recording` prints the validated
+local path of one segment under the owned recordings root and starts no player; open the file
+with an audio player of your choice.
+
+Every untrusted value — candidate names, transcripts, model text — is escaped before it reaches
+the terminal, so an answer containing ANSI sequences is printed as `\x1b[...]` rather than
+executed. Add `--json` to `status` or any `results` subcommand for scripting; JSON output carries
+the original text verbatim and is safe for a decoder, not for `cat`.
+
+Commands exit `0` on success, `2` for a usage error, and `3` when the requested interview,
+recording or segment is unknown, expired or unavailable; the reason is printed on stderr.
+
+Terminal 6 — run the available provider-free lifecycle check:
 
 ```bash
 UV_CACHE_DIR=.tools/uv-cache .tools/bin/uv run interview dry-run --name "Candidate Name"
@@ -128,24 +138,42 @@ UV_CACHE_DIR=.tools/uv-cache .tools/bin/uv run interview dry-run --name "Candida
 It creates generated internal IDs and exercises two distinct fake stage runtimes. It creates no
 room, audio, SQLite record, or provider request.
 
+### Interactive menu
+
+```bash
+./run.sh
+```
+
+`run.sh` exports `UV_CACHE_DIR`, adds the project-local PortAudio runtime to `LD_LIBRARY_PATH`,
+syncs the locked environment and opens the operator menu (`main.py`). The menu starts and stops
+the background stack, runs or rejoins an interview, shows status, prints results, locates
+recordings, lists devices, validates configuration, runs cleanup behind a typed confirmation, and
+runs the offline dry run. It stops any services it started when you quit. Services started outside
+the menu are left alone.
+
 ### One-command start
 
-`scripts/run_local.sh` performs the steps above in order: config check, LiveKit dev server
-(reused if already listening), ROOM Agent Server, retention cleanup, scoring worker, results
-viewer, operator console, and a
+`scripts/run_local.sh` performs the service steps above in order: config check, LiveKit dev server
+(reused if already listening), ROOM Agent Server, retention cleanup, scoring worker, and a
 media-disabled local room with the two sequential HR/technical `AgentSession` stages. It logs to
-`data/logs/`, refuses a busy results port, and stops only the processes it started on `Ctrl-C`.
-Useful flags include `--skip-cleanup`, `--no-agent`, `--no-probe`, `--no-control`,
-`--dry-run "Name"`, `--once`, and `--help`. Cleanup
-permanently deletes interviews past the 30-day retention, so use `--skip-cleanup` when unsure.
+`data/logs/` and stops only the processes it started on `Ctrl-C`. Useful flags include
+`--skip-cleanup`, `--no-agent`, `--no-worker`, `--no-probe`, `--dry-run "Name"`, `--once`, and
+`--help`. The script starts no interview: run `interview run --name "Candidate Name"` in a second
+terminal. Cleanup permanently deletes interviews past the 30-day retention, so use
+`--skip-cleanup` when unsure.
 
-## Remaining live voice blockers
+## Remaining live voice checks
 
 The terminal client has published real 48 kHz mono microphone PCM, ElevenLabs realtime STT has
-transcribed it, and OpenRouter has generated an HR question. ElevenLabs returned HTTP 402 for TTS,
-so no agent audio was generated for the speaker. Enable billing/credits on the configured
-ElevenLabs account, then repeat the live smoke before treating speaker output, voice handoff, or a
+transcribed it, and OpenRouter has generated an HR question. The earlier ElevenLabs HTTP 402 was
+caused by a library HR voice, which free accounts cannot use via the API; HR now uses a default
+voice. Realtime STT now commits final transcripts through ElevenLabs server-side VAD, so a
+candidate's turn ends after two seconds of silence. Both voices stream audio at the provider
+level. Run a complete interview with `./run.sh` before treating speaker output, voice handoff, or a
 complete interview as passed.
+
+If the interviewer is silent again, check `data/logs/agent-server.log` for `paid_plan_required`:
+free ElevenLabs accounts cannot use Voice Library voices through the API.
 
 ## Local LiveKit control-plane probe
 
@@ -178,13 +206,13 @@ LD_LIBRARY_PATH="$PWD/.tools/portaudio/usr/lib/x86_64-linux-gnu" \
 The terminal client exposes explicit input/output selection, publishes a microphone track, and
 plays subscribed agent tracks. This checkout contains an ignored, project-local extracted
 PortAudio runtime under `.tools/portaudio`; the `LD_LIBRARY_PATH` prefix above is required unless
-the system package is installed. Microphone capture is verified, but playback remains blocked by
-the upstream TTS billing response.
+the system package is installed. Microphone capture is verified; in-room speaker playback has not
+yet been observed.
 
 ## Offline acceptance smoke and quality gates
 
 The aggregate smoke runs the two-stage fake lifecycle plus real temporary SQLite scoring,
-recovery/retention, and localhost HTTP results workflows. It removes provider keys from child
+recovery/retention, and terminal results workflows. It removes provider keys from child
 processes and reports `live_audio_verified: false` by design:
 
 ```bash
@@ -211,11 +239,11 @@ participant/track rebinding are not yet wired into a production controller.
 Run `interview cleanup` at startup and at least daily. The tested user-level systemd timer setup,
 failure behavior, and exact 30-day UTC boundary are documented in `docs/retention.md`. Failed file
 deletions remain retryable, and interviews prepared for deletion are immediately hidden from the
-viewer.
+results commands.
 
-For orderly shutdown, stop candidate and Agent Server processes first when those entrypoints
-exist, allow the worker to finish its current assessment, then stop the worker, results viewer,
-and local LiveKit Server with `Ctrl-C`. Do not delete the SQLite database or recording directory
+For orderly shutdown, stop the candidate and Agent Server processes first, allow the worker to
+finish its current assessment, then stop the worker and the local LiveKit Server with `Ctrl-C`.
+The results commands are short-lived and need no shutdown. Do not delete the SQLite database or recording directory
 as a shutdown procedure.
 
 ## Troubleshooting
@@ -225,8 +253,17 @@ as a shutdown procedure.
 - `HR_VOICE_ID and TECH_VOICE_ID must be distinct`: configure two different accessible voices.
 - No audio devices: run outside the restricted environment, confirm `/dev/snd`, PipeWire/ALSA,
   and PortAudio access, then repeat device listing. Do not substitute synthetic audio for the gate.
-- Results page is empty: confirm `SQLITE_PATH` points to the database populated by the interview
-  workflow and that the record is not expired or pending deletion.
+- `interview results list` prints `retained_interviews=0`: confirm `SQLITE_PATH` points to the
+  database populated by the interview workflow and that the record is not expired or pending
+  deletion.
+- A results command exits `3`: the interview or segment ID is unknown, past its 30-day retention,
+  pending deletion, or its recording file no longer exists under `RECORDINGS_DIR`.
+- The interviewer joins but never speaks, or `Active interview already exists`: an earlier
+  interview was left active and the one-active-interview rule rejected the new one. The agent
+  server now closes interrupted interviews as `incomplete` when it starts, and `interview run`
+  refuses before dispatching an agent. Restart the background services (menu `2`, then `1`) and
+  start the interview again. `data/logs/agent-server.log` shows
+  `reconciled_interrupted_interviews=N` at startup.
 - Worker finds no task: `score_task=none` is expected for `--once` when the queue is empty.
 - SQLite lock/transient failure: stop duplicate operator processes, keep transactions short, and
   retry; the database config enables WAL and a busy timeout.

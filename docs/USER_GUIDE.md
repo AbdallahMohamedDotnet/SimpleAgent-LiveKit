@@ -4,10 +4,11 @@ This guide explains how to configure, validate, start, use, test, and stop the p
 application that are currently implemented. Run every command from the repository root.
 
 > [!IMPORTANT]
-> The local LiveKit server, operator console, scoring worker, results viewer, cleanup workflow, and
-> offline two-stage simulation, ROOM Agent Server, and terminal RTC candidate are runnable. A
-> physical interview still requires working PortAudio microphone/speaker devices and verified
-> provider account access; those live gates have not passed on this host.
+> Everything in this application runs in a terminal. There is no web page and no local HTTP
+> service to open. The local LiveKit server, ROOM Agent Server, scoring worker, terminal RTC
+> candidate, status and results commands, cleanup workflow, and the offline two-stage simulation
+> are runnable. A physical interview still requires working PortAudio microphone/speaker devices
+> and verified provider account access; those live gates have not passed on this host.
 
 ## 1. Requirements
 
@@ -62,7 +63,7 @@ OPENROUTER_MODEL=anthropic/claude-sonnet-5
 ELEVEN_API_KEY=YOUR_ELEVENLABS_KEY
 ELEVEN_STT_MODEL=scribe_v2_realtime
 ELEVEN_TTS_MODEL=eleven_turbo_v2_5
-HR_VOICE_ID=21m00Tcm4TlvDq8ikWAM
+HR_VOICE_ID=EXAVITQu4vr4xnSDxMaL
 TECH_VOICE_ID=ErXwobaYiN019PkySvjV
 
 # Fixed interview policy
@@ -75,18 +76,15 @@ THINKING_HOLD_SECONDS=20
 # Local storage and services
 SQLITE_PATH=data/interviews.sqlite3
 RECORDINGS_DIR=data/recordings
-RESULTS_HOST=127.0.0.1
-RESULTS_PORT=8080
-CONTROL_HOST=127.0.0.1
-CONTROL_PORT=8090
 INTERVIEW_AGENT_NAME=interview-agent
 SCORING_WORKER_ID=local-scoring-worker
 SCORING_POLL_SECONDS=2
 ```
 
 Replace only the OpenRouter and ElevenLabs API-key placeholders. The configured voice IDs are
-distinct premade voices: Rachel for HR and Antoni for Technical. Voice availability and model
-access depend on the associated provider accounts.
+distinct default voices: Sarah for HR and Antoni for Technical. Free ElevenLabs accounts cannot
+use Voice Library voices through the API (HTTP 402 `paid_plan_required`), so choose default or
+your own voices on a free plan.
 
 Do not commit `.env`, print its contents, or paste it into issue reports.
 
@@ -107,10 +105,42 @@ secrets=redacted
 ```
 
 Validation checks required credentials, distinct voice IDs, fixed language and timing values,
-local-only results binding, paths, port, and worker polling configuration. It does not make a
+local data paths, the agent dispatch name, and worker polling configuration. It does not make a
 provider request.
 
-## 4. Start the available services
+## 4. Easiest way: the operator menu
+
+```bash
+./run.sh
+```
+
+This is the single entry point. It prepares the environment and opens a numbered menu:
+
+```text
+  1) Start background services (LiveKit, agent server, scoring worker)
+  2) Stop background services
+  3) Start a new interview (uses this terminal's microphone)
+  4) Rejoin an existing interview
+  5) Show live interview status
+  6) List retained interview results
+  7) Show one interview's full results
+  8) Locate a recording file
+  9) List audio devices
+ 10) Check configuration
+ 11) Run retention cleanup (deletes data past 30 days)
+ 12) Offline dry run (no providers, no room, no audio)
+  0) Quit
+```
+
+A normal session is: `1` (wait for `livekit=reachable`), then `3`, answer the candidate name,
+talk, `Ctrl-C` to leave the interview, then `6`/`7` to read the results. Quitting with `0` stops
+the services the menu started. Options that need an interview or a recording show a numbered pick
+list, so you never have to copy an ID by hand.
+
+The sections below describe the same functions as individual commands, for scripting or when you
+prefer one process per terminal.
+
+## 5. Start the available services manually
 
 Use separate terminals and keep each long-running command open.
 
@@ -149,20 +179,9 @@ UV_CACHE_DIR=.tools/uv-cache .tools/bin/uv run interview worker --once
 
 `score_task=none` means the queue is empty; it is not an error.
 
-### Terminal 4 — operator console
+### Terminal 4 — terminal candidate
 
-```bash
-cd /home/bashmohandes-abdallah/Nancy-ai/LiveKit_CLI
-UV_CACHE_DIR=.tools/uv-cache .tools/bin/uv run interview control
-```
-
-Open `http://127.0.0.1:8090/interviews/new`, enter the candidate name, and choose **Start
-interview**. This creates a unique local room and dispatches `interview-agent`. The status page
-shows room, dispatch, agent-job, and candidate-participant readiness.
-
-### Terminal 5 — terminal candidate
-
-List devices, then either create-and-join directly or join the ID shown by the operator console:
+List devices, then create and join the interview, or rejoin an existing one:
 
 ```bash
 UV_CACHE_DIR=.tools/uv-cache .tools/bin/uv run interview devices
@@ -170,26 +189,33 @@ UV_CACHE_DIR=.tools/uv-cache .tools/bin/uv run interview run --name "Candidate N
 UV_CACHE_DIR=.tools/uv-cache .tools/bin/uv run interview join --interview-id INTERVIEW_ID
 ```
 
-Use `--input-device` and `--output-device` when necessary. The candidate command publishes the
-microphone and plays agent audio; the browser remains an operator-only surface.
+`interview run` creates a unique local room, dispatches `interview-agent`, prints the generated
+`interview_id`, and connects terminal audio. Use `--input-device` and `--output-device` when
+necessary. This command owns the microphone and speaker.
 
-### Terminal 6 — results viewer
+### Terminal 5 — status and results
 
 ```bash
 cd /home/bashmohandes-abdallah/Nancy-ai/LiveKit_CLI
-UV_CACHE_DIR=.tools/uv-cache .tools/bin/uv run interview results
+UV_CACHE_DIR=.tools/uv-cache .tools/bin/uv run interview status --interview-id INTERVIEW_ID
+UV_CACHE_DIR=.tools/uv-cache .tools/bin/uv run interview results list
+UV_CACHE_DIR=.tools/uv-cache .tools/bin/uv run interview results show --interview-id INTERVIEW_ID
+UV_CACHE_DIR=.tools/uv-cache .tools/bin/uv run interview results recording --segment-id SEGMENT_ID
 ```
 
-Open:
+`status` shows room, dispatch, agent-job and candidate-participant readiness plus the finalized
+transcript. `results list` shows every retained interview with its HR and technical score and
+coverage; `retained_interviews=0` means the configured database holds no visible, non-expired
+result. `results show` prints the two stage assessments separately, with per-competency rationale,
+cited evidence turns, transcripts and recording status. `results recording` prints the local file
+path of one segment; open it with any audio player.
 
-```text
-http://127.0.0.1:8080/results
-```
+These commands only read. They exit `0` on success, `2` for a usage error, and `3` when the
+requested ID is unknown, expired or unavailable. Add `--json` to any of them for scripting.
+Candidate and model text is escaped before printing, so control characters appear as `\x1b`-style
+escapes instead of affecting your terminal.
 
-The viewer is read-only and localhost-only. An empty page means the configured database contains
-no visible, non-expired interview results.
-
-## 5. Exercise the two-stage lifecycle
+## 6. Exercise the two-stage lifecycle
 
 Run the provider-free simulation:
 
@@ -211,7 +237,7 @@ event=technical:closed
 This validates application orchestration only. It does not create a LiveKit room, contact a
 provider, write an interview to SQLite, or capture audio.
 
-## 6. Run verification
+## 7. Run verification
 
 Run the offline acceptance workflow:
 
@@ -231,7 +257,7 @@ UV_CACHE_DIR=.tools/uv-cache .tools/bin/uv run mypy src
 UV_CACHE_DIR=.tools/uv-cache .tools/bin/uv run pytest
 ```
 
-The current verified baseline is 44 passing tests. On a restricted sandbox, SQLite asynchronous
+The current verified baseline is 59 passing tests. On a restricted sandbox, SQLite asynchronous
 tests may stall; run them from a normal local terminal.
 
 Optional real-room signaling probes, with the local LiveKit server already running:
@@ -244,7 +270,7 @@ UV_CACHE_DIR=.tools/uv-cache .tools/bin/uv run python scripts/p03_livekit_handof
 These prove same-room session lifecycle and handoff without microphone or speaker media. They are
 not live-audio tests.
 
-## 7. Retention cleanup
+## 8. Retention cleanup
 
 Cleanup permanently removes interviews and owned artifacts that have reached the fixed 30-day
 retention boundary. Review the configured `SQLITE_PATH` and `RECORDINGS_DIR` before running it:
@@ -256,33 +282,37 @@ UV_CACHE_DIR=.tools/uv-cache .tools/bin/uv run interview cleanup
 Do not run cleanup as a harmless startup test against data you intend to keep. Scheduling details
 are in [retention.md](retention.md).
 
-## 8. Stop the services
+## 9. Stop the services
 
 Press `Ctrl+C` in this order:
 
 1. Terminal candidate.
 2. ROOM Agent Server.
 3. Scoring worker, after allowing an active assessment to finish.
-4. Operator console and results viewer.
-5. Local LiveKit server.
+4. Local LiveKit server.
+
+The status and results commands exit on their own and need no shutdown step.
 
 Do not delete `data/interviews.sqlite3` or `data/recordings/` as a shutdown step.
 
-## 9. Troubleshooting
+## 10. Troubleshooting
 
 - **Missing required setting:** Fill the named `.env` value and rerun `interview config-check`.
 - **Voice IDs must be distinct:** Use different ElevenLabs voice IDs for HR and Technical.
 - **Provider authentication/model error:** Verify account access and billing. Do not silently
   switch the required model or provider.
-- **Results page is empty:** Confirm `SQLITE_PATH`, then check whether the database has results that
-  are neither expired nor pending deletion.
-- **Port 7880 or 8080 is already in use:** Stop the previous local process before restarting it.
+- **`results list` prints `retained_interviews=0`:** Confirm `SQLITE_PATH`, then check whether the
+  database has results that are neither expired nor pending deletion.
+- **A results command exits `3`:** The ID is unknown, past its 30-day retention, pending deletion,
+  or its recording file is missing from `RECORDINGS_DIR`.
+- **Port 7880 is already in use:** Stop the previous local LiveKit server before restarting it.
 - **No microphone or speaker:** Confirm `/dev/snd`, PipeWire/ALSA, and PortAudio from a normal host
   session, then rerun `interview devices`.
 
-## 10. Current usage boundary
+## 11. Current usage boundary
 
 The planned two-session voice path is implemented, but it is not yet fully accepted. Microphone,
-STT, and opening LLM generation have passed live; ElevenLabs TTS is blocked by HTTP 402. Remaining
+STT, opening LLM generation, and TTS for both voices have passed at the provider level; an
+audible in-room interview has not been verified yet. Remaining
 work also includes observable production recording, automatic live recovery/rebinding, durable
 case and hint evidence, and the live acceptance tests described in `PROGRESS.md`.
