@@ -1,6 +1,6 @@
 # P06 — Adaptive Staff Engineer interview
 
-Implementation: **IN_PROGRESS**. Verification: **PARTIAL**. Updated 20 September 2026.
+Current status is tracked only in [PROGRESS.md](../PROGRESS.md).
 
 **Read first:** [AGENTS.md](../AGENTS.md), [MAIN_PLAN.md](../MAIN_PLAN.md), [ARCHITECTURE.md](../ARCHITECTURE.md), [PROGRESS.md](../PROGRESS.md).
 

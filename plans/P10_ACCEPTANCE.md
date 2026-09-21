@@ -1,6 +1,6 @@
 # P10 — End-to-end acceptance and Ubuntu runbook
 
-Implementation: **IN_PROGRESS**. Verification: **BLOCKED**. Updated 21 September 2026.
+Current status is tracked only in [PROGRESS.md](../PROGRESS.md).
 
 **Read first:** [AGENTS.md](../AGENTS.md), [MAIN_PLAN.md](../MAIN_PLAN.md), [ARCHITECTURE.md](../ARCHITECTURE.md), [PROGRESS.md](../PROGRESS.md).
 
@@ -10,12 +10,13 @@ Implementation: **IN_PROGRESS**. Verification: **BLOCKED**. Updated 21 September
 
 ## Current state
 
-The Ubuntu runbook, R01–R19 acceptance matrix, and aggregate provider-free smoke are implemented.
-The smoke exercises the ordered fake lifecycle plus real temporary SQLite scoring,
-recovery/retention, and localhost HTTP results workflows. The complete offline quality baseline
-passes Ruff formatting/lint, strict mypy for 55 source files, and 40 pytest tests. This is not
-end-to-end voice acceptance: the production ROOM Agent Server/controller and terminal RTC client
-are absent, while physical audio and provider credentials/access remain blocked or unverified.
+The Ubuntu runbook, R01–R19 acceptance matrix, aggregate provider-free smoke, production ROOM
+Agent Server, and terminal RTC candidate are implemented. A real local dispatch has been claimed
+by the registered agent. The complete quality baseline passes Ruff formatting/lint, strict mypy
+for 67 source files, and 52 pytest tests. A terminal microphone track, ElevenLabs STT, and the
+opening OpenRouter response are live-verified. This is not end-to-end voice acceptance:
+ElevenLabs TTS returns HTTP 402, so speaker output, both-voice handoff, and completion remain
+blocked.
 
 ## Objective and scope
 

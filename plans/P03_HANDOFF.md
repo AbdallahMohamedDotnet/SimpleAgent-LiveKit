@@ -1,6 +1,6 @@
 # P03 — One job, two sessions and same-room handoff
 
-Implementation: **IN_PROGRESS**. Verification: **PARTIAL**. Updated 20 September 2026.
+Current status is tracked only in [PROGRESS.md](../PROGRESS.md).
 
 **Read first:** [AGENTS.md](../AGENTS.md), [MAIN_PLAN.md](../MAIN_PLAN.md), [ARCHITECTURE.md](../ARCHITECTURE.md), [PROGRESS.md](../PROGRESS.md).
 
@@ -17,9 +17,12 @@ idempotent, a second active interview is rejected atomically, and a blocked fake
 does not own technical I/O. A production `LiveKitStageRuntime` now validates the persisted room
 SID, binds RoomIO to the intended candidate identity, drains speech/final transcripts, awaits the
 full RoomIO cleanup barrier, and never closes or deletes the job-owned room. Adapter tests and a
-local real-RTC signaling probe pass across two distinct AgentSessions in one room. Agent Server
-registration/dispatch metadata, observable candidate audio, provider-backed speech, and physical
-device verification are still missing; therefore the full acceptance gate is not claimed.
+local real-RTC signaling probe pass across two distinct AgentSessions in one room. The ROOM Agent
+Server now validates durable dispatch metadata, claims a real local dispatch, waits for the exact
+candidate identity, runs the two-stage coordinator, and completes both independent score tasks.
+Candidate microphone audio, ElevenLabs STT, and the opening OpenRouter response are live-verified.
+ElevenLabs TTS, audible two-stage handoff, final-speech drain, and physical speaker output remain
+unverified; therefore the full acceptance gate is not claimed.
 
 ## Latest continuation note — 20 September 2026
 

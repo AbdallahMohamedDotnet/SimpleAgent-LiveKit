@@ -2,8 +2,9 @@
 
 This document is the normative target design. AGENTS.md defines coding discipline; MAIN_PLAN.md
 defines product requirements. P00 verified the selected local versions and relevant SDK
-signatures; live provider/media behavior remains blocked. `PROGRESS.md` is authoritative for what
-is currently implemented and verified.
+signatures; microphone/STT/LLM behavior is partially live-verified while TTS and full media
+acceptance remain blocked. `PROGRESS.md` is authoritative for what is currently implemented and
+verified.
 
 ## 1. Dependency direction
 
@@ -21,13 +22,12 @@ A small Protocol at the boundary is sufficient. Do not build a dependency-inject
 
 Create modules when needed, not empty placeholder files for the entire map.
 
-Current implementation: project/tooling, domain models and policies, application ports, offline
-lifecycle/handoff and scoring-worker use cases, fakes, SQLite evidence/result repositories,
-bounded WAV recording, voice and text-assessment provider construction, settings, CLI dry run and
-worker commands, and unit/contract/integration tests exist. Recovery orchestration, retention
-cleanup, results queries/UI, Agent Server/operator run command, and acceptance tests do not yet
-exist. `adapters/audio/` currently records supplied observable PCM; it is not connected to a real
-room media source.
+Current implementation: project/tooling, domain policies, application ports/use cases, fakes,
+SQLite repositories, bounded WAV recording, provider construction, production ROOM Agent Server,
+terminal RTC candidate, launch/status console, scoring worker, recovery/retention workflows,
+results viewer, and unit/contract/integration tests exist. `adapters/audio/` records supplied PCM
+but is not yet connected to observable room media; production recovery checkpoint/rebind wiring
+and several live acceptance paths also remain. `PROGRESS.md` is authoritative for exact status.
 
 | Path | Responsibility |
 |---|---|

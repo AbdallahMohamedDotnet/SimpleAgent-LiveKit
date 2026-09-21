@@ -1,8 +1,8 @@
 # Local compatibility report
 
-Checked on 20 September 2026. Commands were executed from the repository root. Live provider,
-voice, and physical audio checks remain blocked; verified local control-plane and SDK lifecycle
-results are reported separately from those gates.
+Initially checked on 20 September 2026 and reconciled with live evidence on 21 September 2026.
+Commands were executed from the repository root. Microphone publication, ElevenLabs STT, and an
+OpenRouter response are live-verified; ElevenLabs TTS and speaker playback remain blocked.
 
 ## Status summary
 
@@ -13,14 +13,14 @@ results are reported separately from those gates.
 | Local server and CLI project | PASS | Server bound to `127.0.0.1:7880`; CLI project `local-dev` configured with development credentials |
 | Real room and participant control path | PASS | Room `RM_KxWxgvbH4Nxd`; `p00-terminal (ACTIVE)`, one participant, zero tracks |
 | Two sequential AgentSession lifecycles | PASS (media disabled) | HR and technical sessions closed while room SID and RTC participant SID remained unchanged |
-| Provider adapter construction | PASS (offline only) | Pinned 1.8.2 OpenRouter/ElevenLabs objects construct with required model, realtime STT, English, and distinct configured TTS instances; no request was sent |
-| Terminal microphone and speaker in room | BLOCKED | `lk room join` has no device flags; no accessible audio device exists in this execution environment |
-| Sonnet 5 through OpenRouter | BLOCKED | `OPENROUTER_API_KEY` is unset; account/model/streaming/tool/structured-output behavior is unverified |
-| ElevenLabs streaming STT/TTS and two voices | BLOCKED | API key and both voice IDs are unset; account, model, and voice access are unverified |
-| Published audio capture/interruption/alignment | BLOCKED | No accessible input/output device or provider-backed session; no media tracks were published |
+| Provider adapter construction | PASS | Pinned 1.8.2 OpenRouter/ElevenLabs objects construct with the fixed model, realtime STT, English, and distinct configured TTS voices |
+| Terminal microphone in room | PASS | A project-local PortAudio runtime enumerated host devices and the terminal client published an unmuted microphone track |
+| Sonnet 5 through OpenRouter | PARTIAL | The configured model generated and persisted the opening HR question; scoring/tool/structured-output tasks remain unverified live |
+| ElevenLabs streaming STT/TTS and two voices | BLOCKED | Realtime STT returned candidate text; direct TTS returned HTTP 402 before producing audio frames |
+| Published audio capture/interruption/alignment | BLOCKED | Candidate input publication passed, but agent output, speaker playback, recording alignment, and interruption remain unverified |
 
-The room evidence is not presented as an audio pass. The acceptance gate still requires an
-operator-confirmed microphone/speaker test with published track events.
+The microphone evidence is not presented as a two-way audio pass. The acceptance gate still
+requires generated agent audio, speaker playback, both voices, and complete stage handoff.
 
 ## Selected local toolchain
 
@@ -99,10 +99,10 @@ not audio publication.
   a CLI/device-path compatibility issue to recheck in a normal host terminal; it is not treated
   as proof that the physical machine lacks hardware.
 
-Required follow-up: run the terminal RTC participant from a host session that can access PipeWire
-or ALSA, publish microphone audio in `p00-compatibility`, observe the audio track from another
-participant/recorder, play agent audio, and record an operator confirmation. Capture track SIDs
-and events without storing candidate content in operational logs.
+The later production terminal participant used a project-local PortAudio runtime to enumerate the
+host PipeWire/ALSA devices and publish an unmuted microphone track. Required follow-up is now to
+enable ElevenLabs TTS, play agent audio, capture both directions through the recorder, and record
+operator confirmation without storing candidate content in operational logs.
 
 ## Python SDK and two-session lifecycle evidence
 
@@ -147,20 +147,19 @@ keyterms. Its TTS adapter accepts explicit `voice_id` and model; its default mod
 `base_url`, tool choice, parallel tool calls, retries, and extra request fields, which is the
 intended OpenRouter boundary.
 
-These imports and signatures are compatibility evidence only. The following variables were
-checked for presence without printing values and were unset: `OPENROUTER_API_KEY`,
-`ELEVEN_API_KEY`, `HR_VOICE_ID`, and `TECH_VOICE_ID`. Consequently none of the following is
-verified: Sonnet 5 account access, exact supported request parameters, streaming, tool calls,
-structured scoring responses, ElevenLabs streaming STT/TTS, or access to two distinct voices. No
-fallback model, inference service, or voice was substituted.
+The ignored local configuration was later populated without printing secret values. A live room
+exercise verified ElevenLabs realtime STT and OpenRouter generation with the fixed model. A direct
+two-word ElevenLabs TTS probe returned non-retryable HTTP 402 `Payment Required`; no fallback
+model, inference service, provider, or voice was substituted. Structured scoring, tool behavior,
+both-voice playback, and full streaming output remain unverified.
 
 ## Recording, interruption, and timestamp limits
 
-No actual audio track was published, so recording and delivery claims remain blocked. Generated
-TTS bytes alone will not be treated as proof that speech was played. A later media probe must
-distinguish captured published frames, playback/track events, interruptions, canceled output, and
-what remote audibility cannot prove. Timestamp alignment must be measured against room/media
-events and persisted with explicit uncertainty.
+A candidate microphone track was published, but the recording sink is not wired to observable
+room media and TTS produced no audio frames. A later media probe must distinguish captured input,
+generated output, playback/track events, interruptions, canceled output, and what remote
+audibility cannot prove. Timestamp alignment must be measured against room/media events and
+persisted with explicit uncertainty.
 
 ## Sources
 
@@ -174,15 +173,7 @@ events and persisted with explicit uncertainty.
 
 ## Remaining P00 gate
 
-P00 remains `IN_PROGRESS / BLOCKED`. To finish it, provide a host execution session with usable
-microphone and speaker access plus locally injected OpenRouter and ElevenLabs credentials and two
-different ElevenLabs voice IDs. Then run the real-room audio, provider, voice, drain, interruption,
-capture, and timestamp checks. Missing live inputs are recorded as blockers, not converted into
-synthetic passes.
-
-The latest strict-order recheck found `OPENROUTER_API_KEY`, `ELEVEN_API_KEY`, `HR_VOICE_ID`,
-`TECH_VOICE_ID`, `LIVEKIT_API_KEY`, and `LIVEKIT_API_SECRET` unset in the execution shell.
-`/dev/snd` remained absent and `lk agent console --list-devices` returned no devices. Although
-`sounddevice` 0.5.6 is present through the locked dependency graph, importing it fails with
-`OSError: PortAudio library not found`. Installing PortAudio would still not provide devices while
-the host audio interface is unavailable.
+P00 remains `IN_PROGRESS / BLOCKED`. To finish it, enable billing or credits for the configured
+ElevenLabs account, then run real-room TTS, speaker playback, both distinct voices, drain,
+interruption, capture, and timestamp checks. The HTTP 402 is recorded as a blocker, not converted
+into a synthetic pass.

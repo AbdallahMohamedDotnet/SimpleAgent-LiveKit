@@ -1,6 +1,6 @@
 # P00 — Compatibility and local feasibility
 
-Implementation: **IN_PROGRESS**. Verification: **BLOCKED**. Updated 20 September 2026.
+Current status is tracked only in [PROGRESS.md](../PROGRESS.md).
 
 **Read first:** [AGENTS.md](../AGENTS.md), [MAIN_PLAN.md](../MAIN_PLAN.md), [ARCHITECTURE.md](../ARCHITECTURE.md), [PROGRESS.md](../PROGRESS.md).
 
@@ -10,18 +10,13 @@ Implementation: **IN_PROGRESS**. Verification: **BLOCKED**. Updated 20 September
 
 ## Current state
 
-Local toolchain discovery, checksum-verified LiveKit CLI/server installation, local room signaling,
-SDK signature inspection, and a media-disabled two-session lifecycle probe are complete. The room
-and participant stayed connected across two distinct `AgentSession` instances. Physical two-way
-audio, real-media drain/capture/interruption, OpenRouter Sonnet 5 access, and both ElevenLabs
-voices remain blocked by unavailable host devices and credentials. Exact evidence and commands
-are in [docs/compatibility.md](../docs/compatibility.md) and [PROGRESS.md](../PROGRESS.md).
-
-Latest prerequisite recheck: all OpenRouter/ElevenLabs key and voice variables remain unset,
-`/dev/snd` is absent, the LiveKit CLI lists no devices, and importing the installed `sounddevice`
-package fails because the PortAudio shared library is unavailable. PortAudio installation alone
-would not resolve the absent device interface. No later phase should be started under a
-strict-completion instruction until these external inputs are available and the live gate passes.
+Local toolchain discovery, checksum-verified LiveKit CLI/server installation, room signaling, SDK
+lifecycle inspection, and sequential-session probes are complete. A project-local PortAudio
+runtime later exposed host devices: a terminal candidate published microphone audio, ElevenLabs
+STT transcribed it, and OpenRouter generated the opening HR question. ElevenLabs TTS returned HTTP
+402, so generated agent audio, speaker playback, both-voice handoff, interruption, and real-media
+drain/capture remain blocked. Exact current evidence is in
+[docs/compatibility.md](../docs/compatibility.md) and [PROGRESS.md](../PROGRESS.md).
 
 ## Objective and scope
 

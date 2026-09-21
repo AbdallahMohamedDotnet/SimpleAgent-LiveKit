@@ -1,509 +1,146 @@
-# Implementation Progress
+# Project completion audit
 
-Planning package prepared: 20 September 2026. Offline foundation implementation started on the
-same date; no live room/provider interview has been performed.
+Last reconciled: 21 September 2026.
 
-Current checkpoint: P10 now has a tested Ubuntu runbook, R01–R19 acceptance matrix, and aggregate
-provider-free acceptance smoke. The smoke passes the ordered fake lifecycle plus real temporary
-SQLite scoring, recovery/retention, and localhost HTTP results workflows. Production Agent Server,
-terminal RTC audio, physical-device, and live-provider acceptance remain blocked and are not
-claimed as passes. The latest complete quality run passed Ruff formatting/lint, strict mypy for 55
-source files, and 40 pytest tests in 1.66 seconds.
+This is the single authoritative implementation-status summary for `MAIN_PLAN.md`,
+`ARCHITECTURE.md`, and `plans/P00` through `plans/P10`. The plan files remain the normative
+specification. Detailed operating instructions and reproducible evidence remain in
+`docs/RUNBOOK.md`, `docs/ACCEPTANCE.md`, and `docs/compatibility.md`.
 
-Use implementation status NOT_STARTED / IN_PROGRESS / IMPLEMENTED and verification status NOT_RUN / PARTIAL / PASSED / FAILED / BLOCKED separately. A phase is complete only when implemented and its required verification has passed.
+## Verdict
 
-| Phase | Implementation | Verification | Evidence / blockers |
-|---|---|---|---|
-| P00 | IN_PROGRESS | BLOCKED | Local CLI/server, real room/participant, Python 3.14 plugins, and media-disabled two-session room preservation verified. Physical audio and provider/voice gates remain blocked. |
-| P01 | IMPLEMENTED | PASSED | Offline scaffold, settings, boundaries, fakes, CLI, and quality gates pass; verified LiveKit Agents/ElevenLabs/OpenAI-compatible plugins 1.8.2 are pinned in `uv.lock`. |
-| P02 | IN_PROGRESS | PARTIAL | Durable evidence, event idempotency, synthetic playable WAV segments, artifact checksums, explicit gaps/failures, restartable manifests, and fake score consumption pass offline tests. Real observable room capture remains blocked. |
-| P03 | IN_PROGRESS | PARTIAL | Ordered/idempotent durable handoff plus the production LiveKit stage adapter pass. A local real-RTC probe preserves one room/candidate across distinct sessions. Agent Server dispatch and observable physical media remain blocked. |
-| P04 | IN_PROGRESS | PARTIAL | Provider construction, deadline/idle policies, and supervised finalized-turn persistence pass offline. Provider calls, VAD/barge-in wiring, and real-device verification remain. |
-| P05 | IN_PROGRESS | PARTIAL | Versioned HR Agent instructions/rubric and neutral evidence/injection boundaries pass offline. Dynamic live questioning and provider tests remain. |
-| P06 | IN_PROGRESS | PARTIAL | Versioned technical Agent/rubric, attributed HR context, and evidence-based difficulty/hint policy pass offline. Durable case/hint evidence and live adaptation remain. |
-| P07 | IN_PROGRESS | PARTIAL | Durable independent results, strict JSON/evidence validation, bounded retries/final failures, lease renewal/recovery, keyed OpenRouter construction, and the worker command pass offline. Live Sonnet 5 access and calibration remain. |
-| P08 | IN_PROGRESS | PARTIAL | Durable checkpoints/reconciliation, one fixed 120-second retry incident, exact expiry, safe retryable cleanup, worker race guards, cleanup CLI, and installed daily user timer pass offline. Live controller/checkpoint wiring and real reconnect/media recovery remain. |
-| P09 | IMPLEMENTED | PASSED | Expiry-safe read DTOs/SQLite projection, escaped list/detail pages, localhost server, ID-authorized media, security tests, CLI startup, and an actual HTTP smoke pass. |
-| P10 | IN_PROGRESS | BLOCKED | Runbook, acceptance matrix, aggregate offline smoke, and quality gates pass. Production ROOM Agent Server/terminal RTC client and live audio/provider gates remain blocked. |
+The project is **not complete**. The local application, production ROOM Agent Server, terminal
+RTC candidate, persistence, scoring worker, retention workflow, operator console, and results
+viewer are implemented far enough for the complete offline suite to pass. A real microphone
+track reached ElevenLabs STT, and OpenRouter generated the opening HR question. The configured
+ElevenLabs account returned HTTP 402 for TTS, so agent audio, speaker playback, the audible
+two-stage handoff, and the full end-to-end interview remain blocked.
 
-## Required local inputs
+No phase is marked complete merely because its files exist. Implementation and verification are
+reported separately.
 
-- A host execution session with accessible microphone/speaker devices for the remaining P00 gate.
-- Locally injected OpenRouter and ElevenLabs keys; local LiveKit development credentials are set.
-- Two different ElevenLabs voice IDs.
-- Verified account access to the required Sonnet 5 model and selected speech models.
+## Phase audit
 
-No further product questionnaire is required to begin. Use explicit defaults from MAIN_PLAN.md.
+| Phase | Implementation | Verification | Completed evidence | Remaining work |
+|---|---|---|---|---|
+| P00 compatibility | IN_PROGRESS | BLOCKED | Ubuntu 26.04.1 x86_64, CPython 3.14.4, uv 0.12.17, LiveKit CLI 2.18.2, LiveKit Server 1.13.7, local room/signaling, microphone publication, ElevenLabs STT, and OpenRouter generation were exercised. | Enable ElevenLabs billing/credits and verify TTS, speaker output, both voices, interruption, and real-media drain/capture. |
+| P01 scaffolding | IMPLEMENTED | PASSED | Packaged source layout, pinned lockfile, typed settings, boundaries, CLI, Ruff, strict mypy, pytest, and architecture checks pass. | None. |
+| P02 persistence/recording | IN_PROGRESS | PARTIAL | SQLite migrations, WAL/foreign keys/busy timeout, idempotent turns/events, immutable snapshots, atomic score enqueue, leases, WAV segments, manifests, checksums, gaps, and restart behavior pass. | Connect the recorder to observable candidate and agent room media; verify alignment and incomplete-media behavior with real audio. |
+| P03 lifecycle/handoff | IMPLEMENTED | PARTIAL | A real ROOM dispatch is claimed; durable identity is reused; two distinct `AgentSession` instances run sequentially; HR closes and enqueues scoring before Technical starts; final Technical scoring is enqueued. | Verify audible same-room handoff, final speech drain, and zero overlapping I/O ownership with both live voices. |
+| P04 voice/timing | IN_PROGRESS | PARTIAL | Fixed provider construction, live STT/opening LLM response, 300-second policies, answer completion, overrun, five-second idle policy, thinking hold, transcript persistence, and cleanup barriers pass applicable tests. | Verify TTS/playout, live deadline crossing, VAD/barge-in, idle reminder, thinking extension, and recovery timer behavior. |
+| P05 HR interview | IN_PROGRESS | PARTIAL | Versioned neutral HR instructions/rubric and evidence/injection boundaries pass; one opening HR question was generated live. | Complete a live behavioral stage and add/verify competency-turn tagging, completion control, and synthetic strong/weak/vague conversations. |
+| P06 technical interview | IN_PROGRESS | PARTIAL | Versioned rubric, attributed HR context, Junior-first progression, clarification, and one-hint policy pass offline. | Persist case/difficulty/hint decisions and verify live adaptive questioning, observed boundaries, and provider behavior. |
+| P07 scoring | IN_PROGRESS | PARTIAL | Durable worker, leases, retries/final failures, strict JSON/evidence validation, null-aware independent averages, idempotent writes, and results persistence pass offline. | Run live Sonnet 5 scoring/calibration, including strong, weak, assisted, incomplete, and deliberately slow HR scoring while Technical continues. |
+| P08 recovery/retention | IN_PROGRESS | PARTIAL | Fixed 120-second recovery budget, checkpoints/reconciliation contracts, exact 30-day expiry, safe retryable artifact deletion, worker races, cleanup CLI, and daily user timer pass locally. | Wire checkpoints/recovery into the production live controller and verify real reconnect, track rebind, recorder segmentation, and timeout behavior. |
+| P09 results | IMPLEMENTED | PASSED | Expiry-safe read DTOs, escaped localhost HTML, separate HR/Technical results, evidence links, pending/null/failure display, and ID-authorized media pass HTTP/security tests. | None within P09. |
+| P10 acceptance/runbook | IN_PROGRESS | BLOCKED | Runbook, user guide, operator launch/status UI, terminal commands, offline acceptance smoke, architecture gate, and quality suite pass. | Complete all blocked live scenarios after TTS is available, then record full same-room handoff, scoring concurrency, recovery, recording, and final results evidence. |
 
-## Phase report template
+Only P01 and P09 are fully implemented and verified. P03 is implemented but not fully live-verified.
 
-- Phase and scope:
-- Implementation status:
-- Verification status:
-- Files changed:
-- Decisions/ADRs:
-- Checks actually run and outcomes:
-- Live room/provider/device evidence:
-- Known limitations or blocked checks:
-- Next ready step:
+## Requirement audit
 
-## Decision log
+| Requirement | Status | Summary |
+|---|---|---|
+| R01 | PASSED | Required Ubuntu/Python/toolchain versions are selected, documented, and locked. |
+| R02 | PARTIAL | Local-only LiveKit server, CLI, rooms, dispatch, RTC participant, and agent job work; full audio remains incomplete. |
+| R03 | PARTIAL | Name-only launch, generated IDs, and one-active-interview enforcement work; complete live interview is blocked. |
+| R04 | PARTIAL | One room and two distinct sessions are implemented; audible media handoff is unverified. |
+| R05 | PARTIAL | HR prompts/rubric satisfy the content policy; a complete live HR stage is unverified. |
+| R06 | PARTIAL | Technical prompts/rubric cover the required domains; live adaptive stage is unverified. |
+| R07 | PARTIAL | Dynamic prompt policy, Junior-first progression, and hint limits exist; durable live case/hint evidence is incomplete. |
+| R08 | PARTIAL | Deadline policy passes deterministic tests; live speech-boundary behavior is unverified. |
+| R09 | PARTIAL | English-only and English-neutral scoring rules are enforced in configuration/resources; full provider behavior is unverified. |
+| R10 | PARTIAL | Idle/thinking/interruption policies exist; live VAD, barge-in, and reminders are unverified. |
+| R11 | BLOCKED | ElevenLabs STT is live-verified; TTS returns HTTP 402, so both voices and speaker playback are blocked. |
+| R12 | PARTIAL | OpenRouter Sonnet 5 generated the opening question live; live scoring and all-task verification remain. |
+| R13 | PARTIAL | HR snapshot/task enqueue precedes Technical and scoring owns no room I/O; slow live scoring concurrency is unverified. |
+| R14 | PARTIAL | Evidence validation, 1–5/null rules, coverage, and independent stage scores pass offline; live calibration remains. |
+| R15 | PARTIAL | Records and synthetic WAV artifacts persist; real room recording and technical case/hint evidence are incomplete. |
+| R16 | PASSED | Exact 30-day hiding/deletion, retry behavior, worker races, CLI, and scheduled local cleanup pass. |
+| R17 | PASSED | The localhost-only read-only HTML viewer passes functionality and security checks. |
+| R18 | PARTIAL | Recovery policy and persistence pass offline; production reconnect/checkpoint/media recovery is incomplete. |
+| R19 | PASSED | No in-agent consent step is present, as required. |
 
-### 20 September 2026 — Local baseline and first scaffolding slice
+Detailed scenario evidence is retained in `docs/ACCEPTANCE.md`.
 
-- Selected CPython 3.14.x (`>=3.14,<3.15`) because CPython 3.14.4 is installed and current
-  LiveKit Agents source metadata declares `>=3.10,<3.15`.
-- Installed uv 0.12.17 under the ignored project-local `.tools/bin` directory; no privileged or
-  global installation was performed.
-- Did not invent `lk` syntax or add unverified LiveKit/provider dependencies. The offline slice
-  uses two separate contract-respecting fake stage runtimes; it is not evidence of real
-  AgentSession or room handoff behavior.
-- No architecture deviation recorded. Do not overwrite fixed requirements to bypass an
-  acceptance failure. Keep proposed defaults distinct from user-approved requirements.
+## Implemented operator workflow
 
-### 20 September 2026 — P00 local LiveKit control-plane and lifecycle probe
+The repository exposes:
 
-- Installed checksum-verified LiveKit CLI 2.18.2 and LiveKit Server 1.13.7 under the ignored
-  project-local `.tools/bin` directory; no global package or cloud project was created.
-- Configured the CLI user project `local-dev` for the standard development server at
-  `ws://127.0.0.1:7880`.
-- Confirmed that installed `lk room join` has no microphone/speaker route. `lk agent console`
-  exposes devices but is roomless console behavior and cannot satisfy the room audio gate.
-- Selected LiveKit Agents/plugins 1.8.2 as the verified Python 3.14-compatible candidate versions
-  for later P01 adapter pinning. This P00 probe did not add them to project dependencies.
-- Verified that the job/controller can retain one connected `rtc.Room` while two distinct,
-  media-disabled `AgentSession` instances start and close sequentially. Real media drain and
-  RoomIO handoff remain live verification gates.
+```text
+interview config-check
+interview dry-run --name "Candidate Name"
+interview run --name "Candidate Name" [--input-device DEVICE] [--output-device DEVICE]
+interview join --interview-id ID [--input-device DEVICE] [--output-device DEVICE]
+interview devices
+interview worker [--once]
+interview cleanup
+interview control
+interview results
+interview-agent dev --no-reload
+```
 
-## Phase reports (chronological evidence)
+The control console is operator-only and bound to `127.0.0.1`; candidate microphone and speaker
+I/O remain in the terminal client. SQLite contains interview evidence and local files contain
+recording artifacts. The scoring worker has no room-audio access.
 
-Earlier reports below describe the repository at the time of each slice. Later reports supersede
-their “next step” statements; the summary table and current checkpoint above are authoritative.
+## Latest verification
 
-### P00 — Compatibility and local feasibility (expanded partial)
+The following checks were executed against the current working tree on 21 September 2026:
 
-- Phase and scope: local environment/tool/device/credential discovery and compatibility record.
-- Implementation status: IN_PROGRESS; local control-plane and isolated lifecycle probe implemented.
-- Verification status: BLOCKED for live audio, providers, recording, and real-media session
-  lifecycle gates. Local room signaling and media-disabled session lifecycle are PASSED.
-- Files changed: `docs/compatibility.md`, `scripts/p00_session_lifecycle_probe.py`, `PROGRESS.md`.
-- Checks actually run:
-  - OS, Python, uv, Go, Docker CLI, PipeWire, ALSA, FFmpeg, device, group, daemon-access, and
-    environment-variable presence probes: COMPLETED; secret values were not printed.
-  - Official release metadata lookup plus SHA-256 verification of `lk` 2.18.2 and
-    `livekit-server` 1.13.7 archives: PASSED.
-  - Installed help for root, agent/dev/start/console, room/create/list/join/participants,
-    project/add/set-default, and dispatch/create/list commands: INSPECTED.
-  - Local server start on `127.0.0.1`, CLI project configuration, RoomService create/list,
-    terminal participant join/list: PASSED.
-  - Isolated CPython 3.14 imports and signatures for LiveKit Agents, ElevenLabs, and OpenAI plugins
-    1.8.2: PASSED.
-  - `scripts/p00_session_lifecycle_probe.py`: PASSED; distinct HR and technical sessions closed
-    while room SID `RM_KxWxgvbH4Nxd` and local participant SID `PA_b2tNJCtZcrEg` remained stable.
-  - `lk agent console --list-devices`: BLOCKED; no devices were listed. Forcing the host ALSA
-    config still found no PCM devices and triggered a PortAudio initialization crash.
-  - Initial `uv run` quality commands could not initialize the default read-only home cache;
-    rerunning with `UV_CACHE_DIR=.tools/uv-cache` passed: Ruff format (45 files), Ruff lint, mypy
-    (15 source files), and pytest (6 tests).
-- Live room/provider/device evidence: room `RM_KxWxgvbH4Nxd` and participant `p00-terminal
-  (ACTIVE)` verified with zero tracks. This is signaling evidence, not two-way audio evidence.
-  Provider credentials and both voice IDs remain unset.
-- Known limitations/blockers: physical audio access, OpenRouter model/account access, ElevenLabs
-  STT/TTS and voices, real-media drain, recording, interruption, and timestamp alignment remain
-  unverified. See `docs/compatibility.md`; no blocked behavior is claimed as passed.
-- Next ready step: run the terminal RTC audio/provider probes from a host session with devices,
-  locally injected credentials, and two distinct voice IDs. Independent P01/P02 work may proceed
-  with the verified versions and fakes without claiming the live P00 gate.
+```text
+UV_CACHE_DIR=/tmp/livekit-cli-uv-cache .tools/bin/uv run ruff format --check .
+  PASS: 122 files already formatted
+UV_CACHE_DIR=/tmp/livekit-cli-uv-cache .tools/bin/uv run ruff check .
+  PASS
+UV_CACHE_DIR=/tmp/livekit-cli-uv-cache .tools/bin/uv run mypy src
+  PASS: 67 source files
+UV_CACHE_DIR=/tmp/livekit-cli-uv-cache .tools/bin/uv run pytest
+  PASS: 52 tests in 1.77 seconds
+UV_CACHE_DIR=/tmp/livekit-cli-uv-cache .tools/bin/uv run python scripts/p10_offline_acceptance_smoke.py
+  PASS: offline_only; provider_request_made=false; live_audio_verified=false
+bash -n scripts/run_local.sh
+  PASS
+```
 
-### P01 — Clean project scaffolding
+The restricted sandbox stalled at the known SQLite integration point. The pytest suite and
+offline acceptance smoke were therefore rerun with ordinary host permissions and passed. No new
+provider request was made during this audit.
 
-- Phase and scope: reproducible src-layout foundation and offline two-stage lifecycle.
-- Implementation status: IMPLEMENTED.
-- Verification status: PASSED for the P01 acceptance gate. P00 live audio/provider gates remain
-  independently blocked and are not part of this offline scaffold pass.
-- Files changed: `pyproject.toml`, `uv.lock`, `.python-version`, `.env.example`, `.gitignore`,
-  `README.md`, `src/interview_app/**`, `tests/**`, `docs/structure.md`, `PROGRESS.md`.
-- Checks actually run and outcomes:
-  - `.tools/bin/uv lock` and `.tools/bin/uv sync --group dev`: PASSED with CPython 3.14.4.
-  - `uv run ruff format --check .`: PASSED (44 files already formatted).
-  - `uv run ruff check .`: PASSED.
-  - `uv run mypy src`: PASSED for 15 source files.
-  - `uv run pytest`: PASSED, 6 tests.
-  - `uv run interview dry-run --name "Ada Lovelace"`: PASSED; emitted ordered start, drain, and
-    close events for distinct HR and technical runtimes and finished the interview state.
-  - `uv run interview --help`: PASSED; unavailable future commands are explicitly marked planned.
-  - Official `agent-starter-python` instantiated in a temporary inspection directory: PASSED. Its
-    cloud deployment, LiveKit Inference, AssemblyAI, Fish Audio, noise-cancellation, and
-    single-file defaults were intentionally not copied into this local layered project.
-  - `uv lock` and `uv sync --group dev` after pinning `livekit-agents`,
-    `livekit-plugins-elevenlabs`, and `livekit-plugins-openai` 1.8.2: PASSED; 83 packages resolved.
-  - Package and SDK import smoke check: PASSED for `interview_app`, `AgentServer`, `AgentSession`,
-    ElevenLabs, and the OpenAI-compatible plugin.
-  - Final P01 quality rerun: Ruff format PASSED (45 files), Ruff lint PASSED, mypy PASSED for 15
-    source files, pytest PASSED (6 tests), dry run PASSED, and CLI help PASSED.
-- Live room/provider/device evidence: none; the command is deliberately offline.
-- Known limitations/blockers: no production LiveKit adapter exists yet; that behavior belongs to
-  P03 after P02 persistence contracts. Persistence is still an in-memory fake. Physical audio and
-  provider checks remain blocked under P00.
-- Next ready step: P02 durable SQLite persistence, snapshots, score-task enqueueing, and recording
-  manifests.
+Previously verified live evidence:
 
-### P02 — SQLite and evidence persistence (first durable slice)
+- A project-local PortAudio runtime enumerated PipeWire/ALSA devices.
+- A terminal candidate published an unmuted microphone track in room `RM_vxgMgPepn2Xo`.
+- ElevenLabs realtime STT produced partial and final candidate text.
+- OpenRouter generated and persisted the opening HR question.
+- A direct ElevenLabs TTS probe returned non-retryable HTTP 402 `Payment Required` and produced no
+  audio frames.
 
-- Phase and scope: versioned SQLite foundation, idempotent transcript evidence, immutable
-  snapshots, and persistent lease-based score tasks. Audio recording is not included in this
-  slice because the P00 capture route remains blocked.
-- Implementation status: IN_PROGRESS.
-- Verification status: PARTIAL; database/restart/concurrency/lease behaviors PASSED, recording
-  and playable aligned audio gates are NOT_RUN/BLOCKED.
-- Files changed: `pyproject.toml`, `uv.lock`, `src/interview_app/domain/models.py`,
-  `src/interview_app/application/ports/{transcript_store,score_task_store}.py`,
-  `src/interview_app/adapters/sqlite/**`, `tests/integration/test_sqlite_persistence.py`,
-  `docs/structure.md`, and `PROGRESS.md`.
-- Decisions/ADRs: no architecture deviation. SQLite uses `aiosqlite` 0.21.0 so database work does
-  not block the audio/event loop. Migration resource loading occurs during process bootstrap,
-  before room/audio ownership begins.
-- Checks actually run and outcomes:
-  - `uv lock` and `uv sync --group dev`: PASSED with 84 resolved packages.
-  - Ruff format check: PASSED for 52 files.
-  - Ruff lint: PASSED.
-  - mypy: PASSED for 21 source files.
-  - Full pytest: PASSED, 8 tests, including two SQLite integration tests.
-  - Restricted-sandbox runs exposed blocked cross-thread event-loop notifications in CPython;
-    the same complete integration tests PASSED with ordinary host process permissions in 0.27s,
-    and the full suite PASSED in 0.69s. This was isolated from SQLite lock behavior.
-- Evidence: migration reruns are idempotent; WAL, foreign keys, and busy timeout are configured;
-  restart preserves turns/snapshots/tasks; duplicate identical turns are ignored; conflicting IDs
-  fail; snapshots contain final turns only and reject later mutation; snapshot plus task is one
-  transaction; concurrent short writes pass; expired leases can be reclaimed; stale workers
-  cannot complete reclaimed tasks; repeated successful completion is idempotent.
-- Known limitations/blockers: no recording sink/manifests, playable synthetic audio, gap tracking,
-  fake score consumer, or stage-state persistence beyond creation yet. Real capture remains
-  blocked by P00 device access.
-- Next ready step: add recording manifest contracts with a synthetic WAV sink and explicit gaps,
-  then add the fake score consumer needed by P03.
+## Remaining completion path
 
-### P02 — SQLite and evidence persistence (recording-manifest slice)
+1. Enable billing or credits for the configured ElevenLabs account without changing provider,
+   model, or voices.
+2. Run one complete audible interview and capture evidence for speaker playback, both voices,
+   sequential I/O ownership, full HR-to-Technical handoff, and final results.
+3. Connect real room media to the recording sink and verify alignment, gaps, and restart behavior.
+4. Finish production checkpoint/reconnect wiring and exercise recovery inside and beyond the
+   fixed 120-second deadline.
+5. Persist Technical case, difficulty, and hint decisions; complete live adaptive-policy tests.
+6. Run live scoring calibration and prove delayed HR scoring does not affect Technical audio.
+7. Re-run P10 acceptance and update this file only from executed evidence.
 
-- Phase and scope: bounded job-scoped PCM recording, playable WAV segments, explicit gaps,
-  checksums/status, restartable SQLite manifests, and a lease-respecting fake score consumer.
-- Implementation status: IN_PROGRESS; the offline/synthetic persistence slice is implemented.
-- Verification status: PARTIAL; synthetic audio and manifest gates PASSED, while observable
-  LiveKit room capture and real-device alignment remain BLOCKED by P00.
-- Files changed: `src/interview_app/application/ports/recording.py`,
-  `src/interview_app/adapters/audio/**`, SQLite migration `0002_recordings.sql`, recording domain
-  records/repository, fake score consumer, tests, structure documentation, and `PROGRESS.md`.
-- Checks actually run and outcomes: Ruff format/lint PASSED; strict mypy PASSED; full pytest
-  PASSED as part of the final 14-test run. The recording integration test writes bounded queued
-  PCM, reopens the WAV with the standard library, verifies format/frame count and aligned offset,
-  preserves a declared dropout, saves idempotently, and reloads the identical manifest after a
-  database restart.
-- Known limitations/blockers: the WAV adapter has no LiveKit observable-media source yet. It does
-  not claim generated TTS was delivered. Hardware/provider capture is unverified.
-- Next ready step: attach the sink to the production LiveKit room runtime after a host audio route
-  is available; meanwhile P03 offline orchestration can proceed.
+## Documentation disposition
 
-### P03 — One job, two sessions and same-room handoff (offline slice)
+- Keep `MAIN_PLAN.md`, `ARCHITECTURE.md`, and `plans/` as the normative product and phase specs.
+- Keep `docs/RUNBOOK.md` for operations, `docs/USER_GUIDE.md` for the end-user walkthrough,
+  `docs/ACCEPTANCE.md` for detailed scenario evidence, `docs/compatibility.md` for tool/provider
+  evidence, and `docs/retention.md` for scheduled cleanup.
+- Keep `SOURCES.md` for external source provenance.
+- `CODEX_START.md` was removed because it was a one-time bootstrap prompt whose current-state
+  claims had become stale; `AGENTS.md` plus this audit now provide the active execution guidance.
 
-- Phase and scope: application-owned ordered handoff with durable room/candidate/session binding,
-  lifecycle events, one-active-interview enforcement, immutable payloads, and independent scoring.
-- Implementation status: IN_PROGRESS; application, SQLite, and fake-runtime behavior implemented.
-- Verification status: PARTIAL; offline integration PASSED, real-room/media ownership BLOCKED.
-- Files changed: `src/interview_app/application/handoff.py`, stage runtime/transcript contracts,
-  domain handoff records, SQLite migration `0003_handoff.sql`, repositories/fakes, and handoff
-  integration tests.
-- Checks actually run and outcomes: Ruff format/lint PASSED; strict mypy PASSED; pytest PASSED.
-  The handoff test proves duplicate concurrent handoff calls return one result; HR drains/closes
-  before technical starts; the final HR answer is frozen; one pending task exists; room SID and
-  candidate identity match; session references differ; a second active interview is rejected;
-  and a claimed-but-blocked fake scorer has no technical I/O ownership.
-- Live room/provider/device evidence: none for this slice. Earlier P00 media-disabled lifecycle
-  evidence does not prove this implementation's real RoomIO handoff.
-- Known limitations/blockers: no production `adapters/livekit/` runtime/Agent Server exists yet;
-  restart recovery during handoff belongs to P08. Real single-I/O ownership and final media drain
-  require host devices and credentials.
-- Next ready step: implement the LiveKit adapter against the verified 1.8.2 lifecycle APIs when
-  live prerequisites are available; continue independent P04 timing/provider construction now.
+## Next ready slice
 
-### P04 — Voice providers and timing (first offline slice)
-
-- Phase and scope: pinned OpenRouter/ElevenLabs construction plus monotonic deadline, recovery
-  pause, overrun, genuine-idle, debounce, and explicit-thinking policies.
-- Implementation status: IN_PROGRESS; construction and pure policy slices implemented.
-- Verification status: PARTIAL; deterministic offline tests PASSED, live provider/device gates
-  BLOCKED.
-- Files changed: `src/interview_app/domain/policies.py`,
-  `src/interview_app/adapters/providers/**`, `src/interview_app/settings.py`, `.env.example`, timing
-  and settings tests, structure documentation, and `PROGRESS.md`.
-- Checks actually run and outcomes: inspected installed SDK 1.8.2 signatures for
-  `openai.LLM.with_openrouter`, `elevenlabs.STT`, and `elevenlabs.TTS`; Ruff format/lint PASSED;
-  strict mypy PASSED for 28 source files; full pytest PASSED, 14 tests in 1.38s.
-- Evidence: configuration enforces English, two distinct voice IDs, 300 seconds per stage, five
-  seconds idle, and a 20-second thinking hold. Deadline tests suppress new questions at 300,
-  allow an in-progress answer, record overrun, and exclude recovery. Idle tests suppress reminders
-  during speech/generation/thinking and debounce one reminder per activity interval.
-- Known limitations/blockers: construction made no network request and does not prove Sonnet 5
-  account access, ElevenLabs model/voice access, speech quality, interruption semantics, VAD, or
-  absence of event-loop blocking under real streaming.
-- Next ready step: add thin LiveKit session/speech event wiring and interruption bookkeeping;
-  execute provider/device gates when keys, voices, and host audio are supplied.
-
-## Documentation maintenance
-
-### 20 September 2026 — Repository-wide status reconciliation
-
-- Updated every `plans/P00`–`P10` document with separate implementation and verification status
-  plus a current-state summary grounded in the code and recorded evidence.
-- Updated `README.md`, `MAIN_PLAN.md`, `ARCHITECTURE.md`, `CODEX_START.md`, `SOURCES.md`,
-  `docs/compatibility.md`, `docs/structure.md`, and this ledger to distinguish target design,
-  implemented slices, live blockers, and historical reports.
-- Preserved every requirement and acceptance gate. No blocked real-room/provider behavior was
-  reclassified as passed, and no plan task was removed.
-- Checks actually run after reconciliation: Ruff format check PASSED for 63 files; Ruff lint
-  PASSED; strict mypy PASSED for 28 source files; full pytest PASSED, 14 tests in 1.34 seconds.
-
-### 20 September 2026 — Strict phase-order prerequisite recheck
-
-- Rechecked P00 before starting any new phase. OpenRouter/ElevenLabs keys and both voice IDs were
-  unset; LiveKit credentials were also not injected into the current shell.
-- `/dev/snd` was absent and `lk agent console --list-devices` listed no devices. The locked
-  `sounddevice` package was discoverable but could not import because PortAudio was unavailable.
-- No later-phase implementation was started. P00 remains `IN_PROGRESS / BLOCKED`; completing it
-  requires a host session with usable microphone/speaker devices and locally injected provider
-  credentials/voice IDs.
-
-### 20 September 2026 — P02 offline completion boundary
-
-- Completed every remaining P02 behavior that does not require the blocked P00 media route.
-- Recorder backpressure now observes writer termination instead of hanging on a full queue.
-  Directory/open/write/close/manifest failures are classified, cancellation closes owned writer
-  resources before re-raising, and a disk-write failure remains visible in the returned manifest.
-- WAV checksums now cover the playable file artifact. Durable event delivery now has explicit
-  identical-duplicate and conflicting-ID integration coverage.
-- Files changed: `src/interview_app/adapters/audio/wav_recorder.py`,
-  `tests/integration/test_recording.py`, `tests/integration/test_sqlite_persistence.py`, phase and
-  project status documentation.
-- Checks actually run: Ruff format PASSED for 63 files; Ruff lint PASSED; strict mypy PASSED for
-  28 source files; full pytest PASSED, 15 tests in 1.79 seconds.
-- P02 remains `IN_PROGRESS / PARTIAL`, not complete: connecting the sink to observable LiveKit
-  candidate/agent media and verifying real-device alignment requires the blocked P00 environment.
-  No P03-or-later implementation was started in this continuation.
-
-### 20 September 2026 — P02 stage idempotency regression repair
-
-- Fixed the SQLite stage duplicate path so it reads the existing stage record rather than issuing
-  an incomplete query. Identical stage delivery is now demonstrably idempotent, while reuse of the
-  same stage ID with changed evidence raises `EvidenceConflictError`.
-- Files changed: `src/interview_app/adapters/sqlite/repositories.py`,
-  `tests/integration/test_sqlite_persistence.py`, `plans/P02_PERSISTENCE.md`, and `PROGRESS.md`.
-- Checks actually run: focused P02 SQLite/recording integration tests PASSED (4 tests in 0.21s);
-  Ruff format PASSED for 63 files; Ruff lint PASSED; strict mypy PASSED for 28 source files; full
-  pytest PASSED (15 tests in 1.48s). The first restricted-sandbox integration run was stopped after
-  reproducing the documented CPython/aiosqlite worker-thread notification hang; the ordinary host
-  process run passed.
-- Current blocker recheck: `/dev/snd`, OpenRouter/ElevenLabs keys, both voice IDs, and LiveKit API
-  credentials are absent from this execution environment. Only variable-name presence was checked;
-  no secret values were read or printed.
-- P02 remains `IN_PROGRESS / PARTIAL`: all currently identified offline work passes, but observable
-  LiveKit candidate/agent media capture and real-device timestamp alignment remain blocked by P00.
-
-### 20 September 2026 — P03 production stage runtime and local-room probe
-
-- Phase and scope: production `StageRuntime` implementation for one LiveKit AgentSession, strict
-  candidate/room binding, graceful drain, and same-room sequential lifecycle evidence.
-- Implementation status: IN_PROGRESS. The application handoff and stage runtime are implemented;
-  Agent Server registration and dispatch-metadata composition remain.
-- Verification status: PARTIAL. Adapter contracts, SQLite handoff, and a real local RTC room probe
-  passed. Provider-backed and physical microphone/speaker media remain BLOCKED.
-- Files changed: `src/interview_app/adapters/livekit/{__init__,stage_runtime}.py`,
-  `tests/integration/test_livekit_stage_runtime.py`, `scripts/p03_livekit_handoff_probe.py`,
-  `docs/structure.md`, `plans/P03_HANDOFF.md`, and `PROGRESS.md`.
-- Decisions/ADRs: no architecture deviation. `JobContext` remains the room owner; the stage adapter
-  owns only its AgentSession. RoomIO is pinned to the persisted candidate identity, does not close
-  on participant disconnect, and never deletes the shared room.
-- Checks actually run and outcomes: Ruff format check PASSED for 67 files; Ruff lint PASSED;
-  strict mypy PASSED for 30 source files; full pytest PASSED, 17 tests in 1.42 seconds; the dry-run
-  CLI completed both stages. The focused P03 suite passed 3 tests in 1.59 seconds.
-- Live room evidence: `scripts/p03_livekit_handoff_probe.py` connected candidate and agent RTC
-  participants to local LiveKit Server 1.13.7. Distinct real AgentSession objects emitted ordered
-  start/drain/close events; room SID `RM_AER5uYqo3yXS` and candidate connection remained stable
-  across HR and technical teardown. The first probe exposed a close-event/RoomIO cleanup race;
-  awaiting the SDK `aclose()` barrier removed the duplicate handler symptom.
-- Known limitations/blockers: the probe carried no microphone audio and made no provider calls. A
-  non-fatal `Attempted to drop unknown FFI handle` warning appeared during synthetic teardown.
-  There is still no runnable Agent Server/dispatch entrypoint, and no claim of STT/TTS ownership,
-  final-transcript capture, audible transition speech, or physical-device success.
-- Next ready step: add the ROOM Agent Server/dispatch metadata composition path, then connect
-  finalized SDK transcript events to the durable turn store. Execute provider/device media gates
-  only when local keys, two voice IDs, and host audio devices are supplied.
-
-### 20 September 2026 — Deferred-key continuation through offline P05–P08 contracts
-
-- Scope decision: per operator direction, keys, provider calls, and physical audio checks are
-  deferred until the implementation plan is otherwise complete. Missing credentials are recorded
-  as final verification blockers, not reasons to stop dependency-independent work.
-- Implemented: supervised LiveKit final-turn persistence and pre-snapshot flushing; versioned HR
-  and technical Agent instructions/rubrics; untrusted attributed HR handoff rendering; Junior-first
-  evidence-driven difficulty and one-hint policy; strict score/evidence validation with null-aware
-  averages and coverage; one shared 120-second recovery budget; exact 30-day UTC retention policy.
-- Files changed: `src/interview_app/adapters/livekit/{transcripts,stage_runtime,interviewers}.py`,
-  `src/interview_app/domain/{interviewing,rubrics,scoring,policies}.py`,
-  `src/interview_app/resources/**`, new integration/unit tests, phase documents, and this ledger.
-- Storage incident: the filesystem reached zero free bytes while adding the transcript bridge.
-  Only the reproducible project-local uv cache was cleaned with `uv cache clean --force`; 22,531
-  cache files were removed. No source, candidate data, database, or user file was deleted.
-- Checks actually run: Ruff format check PASSED for 78 files; Ruff lint PASSED; strict mypy PASSED
-  for 38 source files; full pytest PASSED, 28 tests in 1.45 seconds. Focused transcript/handoff
-  integration tests passed 4 tests, and interview/scoring/architecture unit tests passed 9 tests.
-- Evidence: interim STT is ignored; final candidate turns are stored; generated interviewer text is
-  conservatively delivery-uncertain; callback tasks are owned and flushed. Prompt injection remains
-  quoted data. Numeric scores reject fabricated, interviewer, unknown, or out-of-range evidence;
-  all-null stages produce a null average rather than zero.
-- Remaining next slices: durable score-result persistence and worker failure/retry states; case and
-  hint evidence persistence; checkpoint/reconciliation and cleanup; read-only results UI; ROOM
-  Agent Server/operator entrypoints; then final keyed/device validation and acceptance evidence.
-
-### 20 September 2026 — Git ignore-rule cleanup
-
-- Removed duplicate Python cache patterns from `.gitignore`, grouped the remaining rules by
-  purpose, and restored the final newline. Existing secret, environment, tool-cache, bytecode, and
-  candidate-data exclusions remain in force.
-- Verification actually run: `git check-ignore` confirmed `.env`, `.venv`, Python bytecode/cache
-  directories, and `data/` are ignored while `.env.example` remains visible to Git.
-- Repaired the repository boundary after explicit operator direction: the empty project-local
-  `.git/` directory was made writable and initialized on branch `main`. Git now resolves this
-  project as its own working tree instead of falling back to `/home/bashmohandes-abdallah/.git`.
-- Added workspace Git configuration that disables parent-folder repository discovery. This keeps
-  Cursor focused on `LiveKit_CLI` instead of also reporting the unrelated home-level repository.
-
-### 21 September 2026 — P07 durable scoring worker and result persistence
-
-- Phase and scope: resumed at the first unblocked stop point, P07 durable background scoring.
-  Added a text-only assessment boundary, strict JSON parser, one-task use case, persistent stage,
-  competency, and exact-evidence results, retry/final failure states, lease renewal, and the
-  `interview worker` operator command.
-- Implementation status: IN_PROGRESS. The dependency-independent worker path is implemented;
-  live Sonnet 5 access and broader rubric calibration remain.
-- Verification status: PARTIAL. SQLite restart, malformed-output retry, idempotent result reads,
-  null-aware averaging, exact candidate evidence, final provider failure isolation, pinned SDK
-  construction, and single-worker concurrency passed offline. No provider request was made.
-- Files changed: scoring domain/application/port modules, OpenRouter assessment adapter, system
-  clock, SQLite migration `0004_scoring_results.sql` and repository, worker/CLI/settings, tests,
-  environment example, architecture/status documentation.
-- Checks actually run: Ruff format check PASSED for 84 files; Ruff lint PASSED; strict mypy PASSED
-  for 43 source files; focused scoring/SQLite suite PASSED (9 tests); full pytest PASSED (31 tests
-  in 1.51 seconds); `interview --help` exposed the worker command. The restricted sandbox again
-  stalled on CPython/aiosqlite thread notification, so SQLite test runs used the ordinary host
-  process as previously documented.
-- Offline smoke evidence: `uv run python scripts/p07_scoring_smoke.py` migrated a temporary
-  database, claimed and scored one immutable HR snapshot, persisted a 4.0 average with 1/4
-  coverage and exact candidate evidence, reloaded the identical result through a new repository,
-  and confirmed the succeeded task was not delivered again. It made no provider request.
-- Storage handling: the filesystem was initially full. Only the reproducible project-local uv
-  cache was cleaned; 2,062 cache files were removed. No source, interview data, or user file was
-  deleted.
-- Remaining blockers/next step: inject `OPENROUTER_API_KEY` locally and verify the configured
-  Sonnet 5 model with calibrated HR and technical fixtures. The next dependency-independent plan
-  slice is P08 checkpoint persistence, startup reconciliation, and expiry-aware cleanup.
-
-### 21 September 2026 — P08 durable recovery and retention slice
-
-- Phase and scope: added durable recovery checkpoints and connection-attempt history, a
-  transient/permanent recovery coordinator with one persisted 120-second deadline, restart
-  reconciliation, exact-boundary expiry guards, retryable owned-artifact deletion, the
-  `interview cleanup` command, startup/scheduler operations documentation, and a daily user timer.
-- Implementation status: IN_PROGRESS. The dependency-independent recovery/retention contracts and
-  local cleanup process are implemented. Automatic checkpoint writes from the unfinished live
-  interview controller and actual track/participant/recorder rebinding remain.
-- Verification status: PARTIAL. Fake-clock recovery/resume/timeout/permanent-failure/restart tests,
-  SQLite restart state, exact 30-day deletion, filesystem-failure retry, path traversal/symlink
-  rejection, and cleanup-versus-running-worker behavior passed offline. No provider, microphone,
-  or live media reconnect was exercised.
-- Files changed: recovery/retention domain records and application ports/use cases, safe local
-  artifact adapter, SQLite migration `0005_recovery_retention.sql` and repositories, cleanup
-  settings/entrypoint/CLI, P08 smoke script, focused integration tests, scheduler/structure
-  documentation, environment example, P08 plan, README, and this ledger.
-- Checks actually run: Ruff format check PASSED for 94 files; Ruff lint PASSED; strict mypy PASSED
-  for 49 source files; full pytest PASSED (37 tests in 2.14 seconds); focused P08/P07/SQLite tests
-  PASSED (8 tests before the final expanded suite); `interview --help` exposed cleanup; an isolated
-  empty-database CLI cleanup returned 0 prepared/deleted/failed.
-- Offline smoke evidence: `uv run python scripts/p08_recovery_retention_smoke.py` resumed the same
-  HR stage after one transient failure with 201 active seconds preserved, recorded a changed room
-  SID and explicit cut-off question reference, deleted one interview at the exact retention
-  boundary, removed its WAV/manifest directory, and made no provider request.
-- Scheduler evidence: installed and enabled `interview-cleanup.timer` under the current user's
-  systemd manager. Unit verification accepted the new service/timer (while reporting an unrelated
-  pre-existing `spice-vdagent.service` warning). A manual service run completed successfully with
-  0 prepared, 0 deleted, and 0 failed; the timer is active with its next daily run scheduled.
-- Known limitations/blockers: live checkpoint emission after every final turn/state transition is
-  not yet connected because the production job controller is unfinished; startup must invoke
-  reconciliation/cleanup when that entrypoint exists. Real room loss, participant/track rebind,
-  cut-off question delivery decisions, and recorder segment rollover require the deferred host
-  audio/credential gate. Provider-side retention remains outside local control.
-- Next ready step: P09 can consume the expiry-safe read boundary for the local results view while
-  P08 live wiring remains explicitly blocked on the production run/controller path and live media.
-
-### 21 September 2026 — P09 read-only localhost results viewer
-
-- Phase and scope: added immutable result-query DTOs and a consumer-oriented read-only port,
-  expiry-safe SQLite list/detail/media projections, escaped server-rendered pages, an owned-root
-  WAV reader, localhost HTTP server, and the `interview results` command.
-- Implementation status: IMPLEMENTED. The viewer exposes no write actions, candidate interview UI,
-  combined score, ranking, or hiring recommendation. HR and Technical render independently with
-  conversation/assessment status, null-aware score and coverage, rationale, evidence turn links,
-  transcripts, difficulty/assistance observations, and recording status/gaps/failures.
-- Verification status: PASSED. Tests cover malicious-looking candidate/transcript/LLM/failure
-  strings, duplicate names, active/pending, failed, incomplete, missing-media, exact-boundary
-  expired result/media IDs, traversal attempts, and rejected POST requests.
-- Files changed: result application DTO/port, SQLite and web adapters, results entrypoint and
-  composition, settings/CLI/environment example, P09 tests/smoke, structure/readme/plan/status
-  documentation.
-- Checks actually run: focused Ruff/mypy/P09 tests passed; `scripts/p09_results_smoke.py` started a
-  real ephemeral localhost HTTP server and returned 200 for list/detail/audio plus 405 for POST,
-  with escaped untrusted text and byte-identical ID-authorized media; full Ruff format/lint passed,
-  strict mypy passed for 55 source files, and full pytest passed (40 tests in 1.73 seconds).
-  `interview --help` exposes `results`; a CLI startup probe bound `127.0.0.1` on an ephemeral port.
-- Live room/provider/device evidence: not applicable to the viewer and no provider request was
-  made. Playback used a synthetic local WAV-like fixture; real captured interview audio remains
-  blocked and honestly tracked under P02/P08.
-- Known limitations: case/hint evidence can only be displayed to the extent it has been persisted
-  by earlier stages; current durable assessment difficulty/assistance fields are rendered, while
-  live case capture remains an earlier-phase limitation. P10 live end-to-end acceptance remains.
-- Next ready step: implement P10 runbook/acceptance checks and the still-missing production
-  run/status entrypoints without reclassifying blocked provider/device gates as passed.
-
-### 21 September 2026 — P10 offline acceptance and Ubuntu runbook slice
-
-- Phase and scope: added the tested Ubuntu operator runbook, an R01–R19/final-scenario acceptance
-  ledger, and an aggregate provider-free smoke for every currently runnable workflow.
-- Implementation status: IN_PROGRESS. Documentation and offline acceptance automation are
-  implemented; the production ROOM Agent Server/controller and terminal RTC candidate remain
-  earlier-phase implementation gaps.
-- Verification status: BLOCKED overall. The offline smoke and all quality gates PASSED, while no
-  physical microphone/speaker track, ElevenLabs stream, OpenRouter Sonnet 5 request, or complete
-  live interview could be run in this environment.
-- Files changed: `scripts/p10_offline_acceptance_smoke.py`, `docs/RUNBOOK.md`,
-  `docs/ACCEPTANCE.md`, `README.md`, `MAIN_PLAN.md`, `plans/P10_ACCEPTANCE.md`, and this ledger.
-- Decisions/ADRs: no architecture change. The aggregate smoke invokes the existing production
-  SQLite/repository, recovery/retention, and HTTP adapters in temporary directories, strips
-  provider keys from child processes, and explicitly reports `live_audio_verified: false`.
-- Checks actually run and outcomes:
-  - `uv run python scripts/p10_offline_acceptance_smoke.py`: PASSED after correcting the smoke's
-    expected lifecycle event name from `drained` to the actual typed `draining`; it verified the
-    finished ordered two-stage lifecycle, succeeded/restartable score, two-attempt recovery,
-    exact-boundary artifact deletion, results list/detail/media HTTP 200, POST 405, and escaped
-    untrusted HTML. No provider request was made.
-  - `uv run ruff format --check .`: PASSED, 105 files already formatted.
-  - `uv run ruff check .`: PASSED.
-  - `uv run mypy src`: PASSED for 55 source files.
-  - `uv run pytest`: PASSED, 40 tests in 1.66 seconds, including the architecture import check.
-- Live room/provider/device evidence: none added. The prior media-disabled same-room probe remains
-  signaling/lifecycle evidence only. A final recheck found `/dev/snd` and ALSA capture/playback
-  devices, but the locked `sounddevice` import still failed because PortAudio is unavailable. No
-  audio was recorded or played. Provider credentials and both voice IDs remain unset.
-- Known limitations or blocked checks: real terminal audio, production dispatch/startup, live
-  handoff/audio ownership, barge-in, provider access, slow-HR-scoring concurrency, real reconnect,
-  recording alignment, and strong/weak/assisted/incomplete provider calibration remain blocked.
-- Next ready step: implement the production ROOM Agent Server/controller and terminal RTC client
-  in the earliest owning phases, then rerun the live P10 scenarios on a host with devices and
-  locally supplied credentials. P10 must remain `IN_PROGRESS / BLOCKED` until those gates pass.
+P02 production recording and P08 production checkpoint wiring can proceed without a successful
+TTS request. The blocked P00/P04/P10 audible gates should be rerun as soon as ElevenLabs billing is
+enabled.

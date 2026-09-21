@@ -1,6 +1,6 @@
 # P04 — Voice providers, deadlines, interruption and idle handling
 
-Implementation: **IN_PROGRESS**. Verification: **PARTIAL**. Updated 20 September 2026.
+Current status is tracked only in [PROGRESS.md](../PROGRESS.md).
 
 **Read first:** [AGENTS.md](../AGENTS.md), [MAIN_PLAN.md](../MAIN_PLAN.md), [ARCHITECTURE.md](../ARCHITECTURE.md), [PROGRESS.md](../PROGRESS.md).
 
@@ -17,8 +17,9 @@ policies suppress new questions at the deadline, allow the current answer to fin
 overrun, exclude recovery, and debounce genuine-idle reminders. Construction and fake-clock tests
 pass without network access. A supervised LiveKit transcript bridge now persists final candidate
 transcriptions and attributed interviewer turns, marks generated agent delivery as uncertain, and
-flushes before snapshot finalization. Live provider access, VAD state wiring, barge-in
-bookkeeping, and real-device interruption tests remain unimplemented or blocked.
+flushes before snapshot finalization. Live microphone publication, ElevenLabs STT, and the opening
+OpenRouter response are verified. TTS/playout, live VAD/barge-in, deadline, idle, and thinking-time
+behavior remain unverified.
 
 ## Objective and scope
 

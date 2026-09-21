@@ -1,6 +1,6 @@
 # P09 — Minimal read-only HTML results
 
-Implementation: **IMPLEMENTED**. Verification: **PASSED**. Updated 21 September 2026.
+Current status is tracked only in [PROGRESS.md](../PROGRESS.md).
 
 **Read first:** [AGENTS.md](../AGENTS.md), [MAIN_PLAN.md](../MAIN_PLAN.md), [ARCHITECTURE.md](../ARCHITECTURE.md), [PROGRESS.md](../PROGRESS.md).
 

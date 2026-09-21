@@ -1,6 +1,6 @@
 # P07 — Durable background scoring and separate stage results
 
-Implementation: **IN_PROGRESS**. Verification: **PARTIAL**. Updated 20 September 2026.
+Current status is tracked only in [PROGRESS.md](../PROGRESS.md).
 
 **Read first:** [AGENTS.md](../AGENTS.md), [MAIN_PLAN.md](../MAIN_PLAN.md), [ARCHITECTURE.md](../ARCHITECTURE.md), [PROGRESS.md](../PROGRESS.md).
 
@@ -16,9 +16,9 @@ candidate turn; unknown/interviewer/fabricated evidence and out-of-range scores 
 Null competencies require a limitation, are excluded from the mean, and remain in coverage.
 Durable stage/competency/evidence results, strict malformed-output parsing, bounded retry/final
 failure states, lease renewal/recovery, a text-only OpenRouter adapter, and `interview worker` now
-pass offline. The keyed construction path is verified without a network request. Live Sonnet 5
-access, technical difficulty/assistance calibration, and expanded synthetic calibration fixtures
-remain.
+pass offline. OpenRouter access is live-verified for interview generation, but the scoring request
+path has not been exercised live. Live score calibration, technical difficulty/assistance
+calibration, and expanded synthetic fixtures remain.
 
 ## Objective and scope
 

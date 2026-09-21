@@ -1,7 +1,7 @@
 # Main Plan: Local Voice Interview Agent
 
-Version 2.0 specification. Implementation status reconciled 21 September 2026: P01 and P09 are
-complete; P00, P02–P08, and P10 are partial or blocked. See `PROGRESS.md` for evidence.
+Version 2.0 specification. `PROGRESS.md` is the authoritative completion audit; this file defines
+the required product and phase sequence.
 
 ## 1. Objective
 
@@ -67,34 +67,32 @@ The sessions do not speak concurrently. The parallel activity is scoring, which 
 
 ## 5. Phase order
 
-| Phase | Current status | Subplan | Dependencies | Exit outcome |
-|---|---|---|---|---|
-| P00 | IN_PROGRESS / BLOCKED | [Compatibility](plans/P00_COMPATIBILITY.md) | None | Verified local tool/provider/audio capabilities or explicitly blocked live gates |
-| P01 | IMPLEMENTED / PASSED | [Scaffolding](plans/P01_SCAFFOLDING.md) | P00 environment findings | Clean package, ports, config and quality tooling |
-| P02 | IN_PROGRESS / PARTIAL | [Persistence and recording](plans/P02_PERSISTENCE.md) | P01 | Durable turns, snapshots, queue and audio manifests |
-| P03 | IN_PROGRESS / PARTIAL | [Lifecycle and handoff](plans/P03_HANDOFF.md) | P01–P02 | Two sessions in the same real room, single I/O owner |
-| P04 | IN_PROGRESS / PARTIAL | [Voice and timing](plans/P04_VOICE_TIMING.md) | P03 | Interruption, idle and deadline behavior |
-| P05 | IN_PROGRESS / PARTIAL | [HR interview](plans/P05_HR.md) | P04 | Real-situation behavioral questions and evidence |
-| P06 | IN_PROGRESS / PARTIAL | [Technical interview](plans/P06_TECHNICAL.md) | P04–P05 | Adaptive different cases, hints and observed boundaries |
-| P07 | IN_PROGRESS / PARTIAL | [Scoring](plans/P07_SCORING.md) | P02, P05–P06 contracts | Recoverable background assessment, separate scores |
-| P08 | IN_PROGRESS / PARTIAL | [Recovery and retention](plans/P08_RECOVERY_RETENTION.md) | P03–P07 | Two-minute recovery and 30-day expiry |
-| P09 | IMPLEMENTED / PASSED | [Results](plans/P09_RESULTS.md) | P07–P08 | Read-only HTML with evidence and recording playback |
-| P10 | IN_PROGRESS / BLOCKED | [Acceptance and runbook](plans/P10_ACCEPTANCE.md) | All previous | Verified local workflow and honest final report |
+| Phase | Subplan | Dependencies | Exit outcome |
+|---|---|---|---|
+| P00 | [Compatibility](plans/P00_COMPATIBILITY.md) | None | Verified local tool/provider/audio capabilities or explicitly blocked live gates |
+| P01 | [Scaffolding](plans/P01_SCAFFOLDING.md) | P00 environment findings | Clean package, ports, config and quality tooling |
+| P02 | [Persistence and recording](plans/P02_PERSISTENCE.md) | P01 | Durable turns, snapshots, queue and audio manifests |
+| P03 | [Lifecycle and handoff](plans/P03_HANDOFF.md) | P01–P02 | Two sessions in the same real room, single I/O owner |
+| P04 | [Voice and timing](plans/P04_VOICE_TIMING.md) | P03 | Interruption, idle and deadline behavior |
+| P05 | [HR interview](plans/P05_HR.md) | P04 | Real-situation behavioral questions and evidence |
+| P06 | [Technical interview](plans/P06_TECHNICAL.md) | P04–P05 | Adaptive different cases, hints and observed boundaries |
+| P07 | [Scoring](plans/P07_SCORING.md) | P02, P05–P06 contracts | Recoverable background assessment, separate scores |
+| P08 | [Recovery and retention](plans/P08_RECOVERY_RETENTION.md) | P03–P07 | Two-minute recovery and 30-day expiry |
+| P09 | [Results](plans/P09_RESULTS.md) | P07–P08 | Read-only HTML with evidence and recording playback |
+| P10 | [Acceptance and runbook](plans/P10_ACCEPTANCE.md) | All previous | Verified local workflow and honest final report |
 
 Queue contracts and a fake scoring consumer exist before P07 so P03 can prove nonblocking handoff. P07 replaces the fake with real validated LLM scoring. If a live preflight gate is blocked, dependency-independent implementation may continue with fakes; no corresponding live gate is considered passed.
 
 ## 6. Milestones
 
-1. **M1 — Feasibility (PARTIAL/BLOCKED):** local control plane and SDK lifecycle pass; physical
-   audio, model access, and two voices remain blocked.
-2. **M2 — Foundation (PARTIAL):** package boundaries, SQLite migrations, synthetic recorder,
-   manifests, snapshots, and queue contracts pass; real room capture remains.
-3. **M3 — Interview (IN_PROGRESS):** offline two-runtime handoff and timing policies pass; LiveKit
-   runtime wiring, generated interviewers, and live same-room proof remain.
-4. **M4 — Assessment (IN_PROGRESS):** durable offline scoring and score persistence pass; live
-   Sonnet 5 access and calibration remain.
-5. **M5 — Operational prototype (IN_PROGRESS):** offline recovery, expiry, and results pass;
-   production run wiring, the runbook, and final live acceptance remain.
+1. **M1 — Feasibility:** verify the local control plane, SDK lifecycle, providers, and physical
+   audio path.
+2. **M2 — Foundation:** establish package boundaries, durable evidence, recording, and queue
+   contracts.
+3. **M3 — Interview:** prove the two-session interview, timing, and same-room media handoff.
+4. **M4 — Assessment:** prove durable independent scoring and calibration.
+5. **M5 — Operational prototype:** prove recovery, retention, results, the runbook, and final live
+   acceptance.
 
 ## 7. Final acceptance
 

@@ -12,23 +12,28 @@ absent. Provider construction is tested offline, but provider access is not yet 
 - `adapters` implements ports. Fakes deliberately model lifecycle and failure behavior; the
   SQLite, WAV, provider-construction, and LiveKit stage adapters preserve the same typed
   boundaries.
-- `entrypoints` parse operator input and delegate to use cases.
+- `entrypoints` parse operator input and delegate to use cases. Its small environment loader reads
+  `.env` without shell evaluation, overlays real process variables, and passes the resulting
+  mapping to the central settings boundary.
 - `bootstrap.py` is the composition root and the only layer that selects concrete adapters.
 - `settings.py` reads no environment variables itself. A process boundary passes a mapping,
   receives validated immutable settings, and injects them during construction.
 
 The official `agent-starter-python` template was instantiated only in a temporary inspection
-directory. Its single-file, cloud-oriented layout was not copied over this architecture. When the
-real Agent Server entrypoint is added, its SDK callbacks and Agent subclasses belong under
-`adapters/livekit/`; the entrypoint will construct them through `bootstrap.py`.
+directory. Its single-file, cloud-oriented layout was not copied over this architecture. The
+ROOM job, stage runtime, Agent subclasses, dispatch gateway, and terminal RTC implementation live
+under `adapters/livekit/`; thin entrypoints load validated settings and invoke them.
 
 Each stage runtime owns only its stage lifecycle and must drain before it closes.
 `TwoStageHandoffController` passes the same durable room SID and generated candidate identity to
 both distinct runtimes, closes HR before starting technical I/O, and never gives a scoring
 consumer room media access. `adapters/livekit/LiveKitStageRuntime` implements that boundary with
 one `AgentSession`, binds RoomIO to the intended candidate identity, refuses a mismatched room SID,
-and awaits full RoomIO cleanup without disconnecting or deleting the job-owned room. Agent Server
-registration and dispatch-metadata composition remain future entrypoint work.
+and awaits full RoomIO cleanup without disconnecting or deleting the job-owned room. The Agent
+Server validates dispatch metadata against the persisted binding, retains the job-owned room,
+waits for the exact candidate, and coordinates both sessions. The operator console creates a
+uniquely named room, persists generated interview/candidate identities, and sends explicit
+dispatch metadata.
 
 `adapters/sqlite/` now owns database connection policy, versioned migrations, SQL, and conversion
 between rows and immutable boundary records. Every repository operation opens a configured
@@ -66,12 +71,21 @@ Available commands:
 
 ```text
 interview dry-run --name "Candidate Name"
+interview run --name "Candidate Name" [--input-device DEVICE] [--output-device DEVICE]
+interview join --interview-id ID [--input-device DEVICE] [--output-device DEVICE]
+interview devices
 interview worker [--once]
 interview cleanup
+interview control
 interview results
+interview config-check
+interview-agent dev --no-reload
 ```
 
-The available commands are the offline `dry-run` lifecycle, durable `worker` scoring process,
-retryable `cleanup` retention pass, and localhost-only `results` viewer. Planned but unavailable
-commands are `run` and `status`. See `docs/retention.md` for startup catch-up and local scheduler
-instructions.
+The localhost-only `control` console creates a real local LiveKit room and dispatch request, then
+shows room, agent-job, and candidate-participant status. It is an operator surface, not a browser
+audio client. The terminal candidate publishes bounded microphone PCM and plays subscribed agent
+tracks. The remaining commands provide the offline `dry-run` lifecycle, durable scoring,
+retryable retention cleanup, read-only results, and secret-redacting configuration check.
+Commands automatically load `.env`; process environment values take precedence. See
+`docs/retention.md` for startup catch-up and local scheduler instructions.

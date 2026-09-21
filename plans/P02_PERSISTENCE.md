@@ -1,6 +1,6 @@
 # P02 — SQLite, evidence persistence and recording
 
-Implementation: **IN_PROGRESS**. Verification: **PARTIAL**. Updated 20 September 2026.
+Current status is tracked only in [PROGRESS.md](../PROGRESS.md).
 
 **Read first:** [AGENTS.md](../AGENTS.md), [MAIN_PLAN.md](../MAIN_PLAN.md), [ARCHITECTURE.md](../ARCHITECTURE.md), [PROGRESS.md](../PROGRESS.md).
 
@@ -18,19 +18,9 @@ manifests pass offline tests. Checksums cover the actual WAV artifact; writer/di
 errors are classified, queue backpressure cannot hang after writer failure, cancellation performs
 bounded cleanup, and failed segments remain visible in a failed manifest. Identical durable stage,
 turn, and event deliveries are idempotent while conflicting reuse is rejected. The fake score
-consumer obeys the same task lease contract. Actual observable LiveKit media capture and
-real-device timestamp alignment remain blocked by P00, so P02 is not marked implemented or passed.
-
-## Latest continuation note — 20 September 2026
-
-The SQLite duplicate-stage path was repaired so an identical repeated stage record is idempotent,
-while reuse of the same stage ID with changed evidence raises `EvidenceConflictError`. Regression
-coverage was added for both cases. The focused P02 SQLite/recording tests passed (4 tests), Ruff
-formatting and lint passed, strict mypy passed for 28 source files, and the full pytest suite passed
-(15 tests). P02 remains **IN_PROGRESS / PARTIAL** because observable LiveKit candidate/agent media
-capture and real-device timestamp alignment cannot be verified in the current environment:
-`/dev/snd`, provider credentials, LiveKit credentials, and both voice IDs are absent. All currently
-identified offline P02 work passes.
+consumer obeys the same task lease contract. The live candidate microphone path is verified, but
+the recording sink is not connected to observable candidate/agent room media. Real recording
+alignment and gap behavior therefore remain.
 
 ## Objective and scope
 

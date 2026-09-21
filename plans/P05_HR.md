@@ -1,6 +1,6 @@
 # P05 — HR behavioral interview
 
-Implementation: **IN_PROGRESS**. Verification: **PARTIAL**. Updated 20 September 2026.
+Current status is tracked only in [PROGRESS.md](../PROGRESS.md).
 
 **Read first:** [AGENTS.md](../AGENTS.md), [MAIN_PLAN.md](../MAIN_PLAN.md), [ARCHITECTURE.md](../ARCHITECTURE.md), [PROGRESS.md](../PROGRESS.md).
 
@@ -13,8 +13,9 @@ Implementation: **IN_PROGRESS**. Verification: **PARTIAL**. Updated 20 September
 A thin HR Agent, versioned English instructions, four-competency rubric, neutral evidence rules,
 and prompt-scope tests are implemented. The instructions require actual work situations, actions,
 and outcomes; reject candidate instruction injection; and prohibit grammar, accent, personality,
-mental-health, and hiring-decision inferences. Dynamic live questioning, validated completion
-tools, competency/turn tagging, synthetic model conversations, and provider verification remain.
+mental-health, and hiring-decision inferences. OpenRouter generated and persisted one opening HR
+question from live STT input. A complete behavioral stage, validated completion tools,
+competency/turn tagging, and synthetic strong/weak/vague conversations remain.
 
 ## Objective and scope
 
