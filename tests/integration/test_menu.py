@@ -296,3 +296,20 @@ def test_a_blocked_interview_explains_how_to_recover(
     assert "choose 2, then 1" in printed
     # Refused before asking anything, so no name or device prompt was shown.
     assert "Candidate name:" not in printed
+
+
+def test_rejoining_an_incomplete_interview_is_refused_before_any_device_prompt(
+    seeded_menu_environment: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("LIVEKIT_API_KEY", "local-key")
+    monkeypatch.setenv("LIVEKIT_API_SECRET", "local-secret")
+    console = FakeConsole(["4", "1", "0"])
+
+    InterviewMenu(console=console, supervisor=FakeSupervisor(managed=True, reachable=True)).run()
+
+    printed = console.printed
+    assert "menu-interview is incomplete" in printed
+    assert "Start a new interview" in printed
+    # An empty room would never be answered, so nothing was connected or asked for.
+    assert "Input device" not in printed
+    assert "Connecting" not in printed
