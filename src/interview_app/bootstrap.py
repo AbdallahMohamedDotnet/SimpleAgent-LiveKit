@@ -1,5 +1,7 @@
 """Composition root for constructing application use cases."""
 
+from pathlib import Path
+
 from interview_app.adapters.artifacts import LocalRecordingLocator
 from interview_app.adapters.clock import SystemClock
 from interview_app.adapters.fakes import FakeClock, FakeStageRuntime, InMemoryInterviewStore
@@ -7,10 +9,12 @@ from interview_app.adapters.livekit import LiveKitInterviewLaunchGateway
 from interview_app.adapters.sqlite import (
     SqliteDatabase,
     SqliteInterviewStore,
+    SqliteRecoveryStore,
     SqliteResultsReader,
 )
 from interview_app.application.interview import DryRunInterview
 from interview_app.application.launch import GetInterviewMission, StartInterview
+from interview_app.application.recovery import ReconcileInterruptedInterviews
 from interview_app.domain.models import StageKind
 from interview_app.settings import LaunchSettings, ResultsSettings
 
@@ -37,6 +41,17 @@ def build_results_reader(
         database,
         SqliteResultsReader(database),
         LocalRecordingLocator(settings.recordings_root),
+    )
+
+
+def build_interruption_reconciler(
+    sqlite_path: Path,
+) -> tuple[SqliteDatabase, ReconcileInterruptedInterviews]:
+    """Construct the startup pass that closes interviews whose job process no longer exists."""
+    database = SqliteDatabase(sqlite_path)
+    return database, ReconcileInterruptedInterviews(
+        store=SqliteRecoveryStore(database),
+        clock=SystemClock(),
     )
 
 
