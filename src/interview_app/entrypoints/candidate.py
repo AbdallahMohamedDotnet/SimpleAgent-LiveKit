@@ -8,11 +8,13 @@ from interview_app.adapters.livekit.candidate import (
     TerminalCandidateClient,
 )
 from interview_app.adapters.sqlite import SqliteDatabase, SqliteInterviewStore
+from interview_app.application.ports.interview_launch import InterviewLaunchError
 from interview_app.application.ports.interview_store import (
     ActiveInterviewExistsError,
+    InterviewStateConflictError,
 )
 from interview_app.bootstrap import build_start_interview, launch_gateway
-from interview_app.domain.models import InterviewId, InterviewRecord
+from interview_app.domain.models import InterviewId, InterviewRecord, InterviewState
 from interview_app.settings import LaunchSettings
 
 ACTIVE_INTERVIEW_HINT = (
@@ -29,6 +31,42 @@ async def ensure_no_active_interview(settings: LaunchSettings) -> None:
     active = await SqliteInterviewStore(database).find_active()
     if active is not None:
         raise ActiveInterviewExistsError(active.id)
+
+
+_NOT_REJOINABLE_STATES = frozenset({InterviewState.INCOMPLETE, InterviewState.INTERVIEW_FINISHED})
+_START_NEW_HINT = "Choose 'Start a new interview' instead."
+
+
+async def ensure_rejoinable(settings: LaunchSettings, interview_id: InterviewId) -> InterviewRecord:
+    """Refuse a rejoin that nobody would answer.
+
+    Joining a room whose interview job has ended, or whose room no longer exists (a restarted
+    ``livekit-server --dev`` forgets every room), silently creates an empty room: no agent is
+    dispatched, so the candidate hears nothing. Fail loudly before any device is opened.
+    """
+    database = SqliteDatabase(settings.sqlite_path)
+    await database.migrate()
+    interview = await SqliteInterviewStore(database).get(interview_id)
+    if interview.state in _NOT_REJOINABLE_STATES:
+        raise InterviewStateConflictError(
+            f"Interview {interview.id} is {interview.state.value}; its interviewer is no longer "
+            f"running, so rejoining would connect to an empty room. {_START_NEW_HINT}"
+        )
+    if interview.room_name is None or interview.candidate_identity is None:
+        raise InterviewStateConflictError(
+            f"Interview {interview.id} has no LiveKit room binding. {_START_NEW_HINT}"
+        )
+    live = await launch_gateway(settings).get_status(
+        room_name=interview.room_name,
+        candidate_identity=interview.candidate_identity,
+    )
+    if not live.room_available or not live.agent_joined:
+        raise InterviewLaunchError(
+            f"Interview {interview.id} has no running interviewer in its LiveKit room "
+            f"(room_available={live.room_available}, agent_joined={live.agent_joined}). Make "
+            f"sure the background services are running. {_START_NEW_HINT}"
+        )
+    return interview
 
 
 async def start_and_join(
@@ -59,10 +97,8 @@ async def join_existing(
     input_device: str | None,
     output_device: str | None,
 ) -> InterviewRecord:
+    interview = await ensure_rejoinable(settings, interview_id)
     audio = SoundDeviceBackend()
-    database = SqliteDatabase(settings.sqlite_path)
-    await database.migrate()
-    interview = await SqliteInterviewStore(database).get(interview_id)
     await _join(
         settings,
         interview,

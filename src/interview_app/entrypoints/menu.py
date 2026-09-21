@@ -33,6 +33,7 @@ from interview_app.domain.models import InterviewId, RecordingSegmentId
 from interview_app.entrypoints.candidate import (
     ACTIVE_INTERVIEW_HINT,
     ensure_no_active_interview,
+    ensure_rejoinable,
     join_existing,
     start_and_join,
 )
@@ -224,6 +225,7 @@ class InterviewMenu:
         interview_id = self._ask_interview()
         if interview_id is None:
             return
+        asyncio.run(ensure_rejoinable(_launch_settings(), interview_id))
         devices = self._ask_devices()
         self._console.write("Connecting; press Ctrl-C to leave the interview.")
         asyncio.run(
