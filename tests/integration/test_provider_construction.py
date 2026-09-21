@@ -1,6 +1,7 @@
 import asyncio
 
 from interview_app.adapters.providers import OpenRouterAssessmentModel, build_voice_providers
+from interview_app.adapters.providers.voice import END_OF_TURN_SILENCE_SECONDS
 from interview_app.settings import Secret, Settings
 
 
@@ -23,6 +24,10 @@ def test_pinned_provider_options_construct_without_network_access() -> None:
         )
         assert providers.llm.model == "anthropic/claude-sonnet-5"
         assert providers.stt.model == "scribe_v2_realtime"
+        # Server-side VAD is what commits final transcripts; without it turns never end.
+        assert providers.stt._opts.server_vad == {
+            "vad_silence_threshold_secs": END_OF_TURN_SILENCE_SECONDS
+        }
         assert providers.hr_tts.model == "eleven_turbo_v2_5"
         assert providers.technical_tts.model == "eleven_turbo_v2_5"
         assert providers.hr_tts is not providers.technical_tts

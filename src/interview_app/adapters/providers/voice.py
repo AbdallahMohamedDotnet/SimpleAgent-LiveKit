@@ -1,10 +1,19 @@
 """Pinned LiveKit plugin construction for OpenRouter and ElevenLabs."""
 
 from dataclasses import dataclass
+from typing import Final
 
 from livekit.plugins import elevenlabs, openai
 
 from interview_app.settings import Settings
+
+# Scribe realtime only emits a final transcript when a commit happens. Neither AgentSession runs a
+# local VAD that would send a manual commit, so ElevenLabs' server-side VAD must commit instead;
+# without it the sessions receive partial transcripts only and a candidate's turn never ends.
+# Two seconds is deliberately longer than the provider's 1.5-second default so ordinary
+# mid-answer hesitation is not taken as a finished answer (P04). Longer, explicit thinking time
+# is governed separately by the thinking-hold policy.
+END_OF_TURN_SILENCE_SECONDS: Final = 2.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -27,8 +36,8 @@ def build_voice_providers(settings: Settings) -> VoiceProviderBundle:
             api_key=settings.eleven_api_key.reveal(),
             model=settings.eleven_stt_model,
             language_code=settings.interview_language,
-            use_realtime=True,
             include_timestamps=True,
+            server_vad={"vad_silence_threshold_secs": END_OF_TURN_SILENCE_SECONDS},
         ),
         hr_tts=elevenlabs.TTS(
             api_key=settings.eleven_api_key.reveal(),
