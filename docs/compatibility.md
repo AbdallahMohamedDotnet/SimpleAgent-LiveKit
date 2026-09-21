@@ -16,7 +16,7 @@ OpenRouter response are live-verified; ElevenLabs TTS and speaker playback remai
 | Provider adapter construction | PASS | Pinned 1.8.2 OpenRouter/ElevenLabs objects construct with the fixed model, realtime STT, English, and distinct configured TTS voices |
 | Terminal microphone in room | PASS | A project-local PortAudio runtime enumerated host devices and the terminal client published an unmuted microphone track |
 | Sonnet 5 through OpenRouter | PARTIAL | The configured model generated and persisted the opening HR question; scoring/tool/structured-output tasks remain unverified live |
-| ElevenLabs streaming STT/TTS and two voices | BLOCKED | Realtime STT returned candidate text; direct TTS returned HTTP 402 before producing audio frames |
+| ElevenLabs streaming STT/TTS and two voices | PARTIAL | STT commits final transcripts with server-side VAD; both voices stream TTS audio. The earlier 402 was a library HR voice, now replaced. In-room playback unverified |
 | Published audio capture/interruption/alignment | BLOCKED | Candidate input publication passed, but agent output, speaker playback, recording alignment, and interruption remain unverified |
 
 The microphone evidence is not presented as a two-way audio pass. The acceptance gate still
@@ -153,6 +153,16 @@ two-word ElevenLabs TTS probe returned non-retryable HTTP 402 `Payment Required`
 model, inference service, provider, or voice was substituted. Structured scoring, tool behavior,
 both-voice playback, and full streaming output remain unverified.
 
+Update, 21 September 2026. The 402 body was `paid_plan_required`: "Free users cannot use library
+voices via the API." It applied only to the HR voice `21m00Tcm4TlvDq8ikWAM`; the technical voice
+returned audio. With the operator's approval the HR voice was changed to the default voice Sarah
+(`EXAVITQu4vr4xnSDxMaL`), which the account can use; provider and model are unchanged. The API key
+lacks `user_read` and `voices_read`, so account tier and the voice list cannot be queried with it.
+Separately, realtime STT used `commit_strategy=manual`, and no session ran a local VAD to send
+commits, so only partial transcripts arrived. The STT adapter now enables ElevenLabs server-side
+VAD with a 2-second silence threshold; a live probe then returned a final transcript and
+end-of-speech. Both voices streamed audio through the production TTS objects.
+
 ## Recording, interruption, and timestamp limits
 
 A candidate microphone track was published, but the recording sink is not wired to observable
@@ -173,7 +183,7 @@ persisted with explicit uncertainty.
 
 ## Remaining P00 gate
 
-P00 remains `IN_PROGRESS / BLOCKED`. To finish it, enable billing or credits for the configured
-ElevenLabs account, then run real-room TTS, speaker playback, both distinct voices, drain,
-interruption, capture, and timestamp checks. The HTTP 402 is recorded as a blocker, not converted
-into a synthetic pass.
+P00 remains `IN_PROGRESS`. The provider-level STT/TTS blocker is resolved (see the 21 September
+2026 update above). To finish it, run real-room TTS playback, both distinct voices, drain,
+interruption, capture, and timestamp checks. Provider-level probes are not a substitute for that
+in-room evidence.

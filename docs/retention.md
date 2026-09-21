@@ -6,7 +6,7 @@ owned recordings root, then removes the interview and all dependent SQLite rows.
 remain visible and retryable. A deletion job immediately hides its interview from reads and blocks
 score-task claims or late result writes.
 
-Run cleanup before starting the voice job, scoring worker, or results process, and schedule the same
+Run cleanup before starting the voice job or scoring worker, and schedule the same
 command locally at least daily:
 
 ```bash

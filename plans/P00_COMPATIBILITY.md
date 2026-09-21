@@ -13,9 +13,10 @@ Current status is tracked only in [PROGRESS.md](../PROGRESS.md).
 Local toolchain discovery, checksum-verified LiveKit CLI/server installation, room signaling, SDK
 lifecycle inspection, and sequential-session probes are complete. A project-local PortAudio
 runtime later exposed host devices: a terminal candidate published microphone audio, ElevenLabs
-STT transcribed it, and OpenRouter generated the opening HR question. ElevenLabs TTS returned HTTP
-402, so generated agent audio, speaker playback, both-voice handoff, interruption, and real-media
-drain/capture remain blocked. Exact current evidence is in
+STT transcribed it, and OpenRouter generated the opening HR question. The ElevenLabs TTS HTTP 402
+was traced to a library HR voice and resolved by switching HR to a default voice; STT now commits
+final transcripts via server-side VAD. Speaker playback, both-voice handoff, interruption, and
+real-media drain/capture in a room remain unverified. Exact current evidence is in
 [docs/compatibility.md](../docs/compatibility.md) and [PROGRESS.md](../PROGRESS.md).
 
 ## Objective and scope

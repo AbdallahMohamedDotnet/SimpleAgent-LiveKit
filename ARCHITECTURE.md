@@ -24,8 +24,8 @@ Create modules when needed, not empty placeholder files for the entire map.
 
 Current implementation: project/tooling, domain policies, application ports/use cases, fakes,
 SQLite repositories, bounded WAV recording, provider construction, production ROOM Agent Server,
-terminal RTC candidate, launch/status console, scoring worker, recovery/retention workflows,
-results viewer, and unit/contract/integration tests exist. `adapters/audio/` records supplied PCM
+terminal RTC candidate, terminal launch/status commands, scoring worker, recovery/retention
+workflows, terminal results commands, and unit/contract/integration tests exist. `adapters/audio/` records supplied PCM
 but is not yet connected to observable room media; production recovery checkpoint/rebind wiring
 and several live acceptance paths also remain. `PROGRESS.md` is authoritative for exact status.
 
@@ -47,8 +47,9 @@ and several live acceptance paths also remain. `PROGRESS.md` is authoritative fo
 | `src/interview_app/adapters/providers/` | ElevenLabs and OpenRouter integration |
 | `src/interview_app/adapters/sqlite/` | Migrations, repositories and task queue |
 | `src/interview_app/adapters/audio/` | Terminal device I/O and recording |
-| `src/interview_app/adapters/web/` | Minimal results server and escaped templates |
-| `src/interview_app/entrypoints/` | CLI, worker, agent, results and cleanup commands |
+| `src/interview_app/adapters/terminal/` | Terminal result rendering, JSON output and control-character escaping |
+| `src/interview_app/adapters/artifacts.py` | Owned-data-root path resolution and deletion |
+| `src/interview_app/entrypoints/` | CLI, worker, agent, status, results and cleanup commands |
 | `src/interview_app/bootstrap.py` | Dependency construction and resource ownership |
 | `src/interview_app/settings.py` | Validated boundary configuration |
 | `src/interview_app/resources/prompts/` | Versioned HR, technical, scoring and summary prompts |
@@ -65,7 +66,7 @@ and several live acceptance paths also remain. `PROGRESS.md` is authoritative fo
 - Each AgentSession owns its own STT/LLM/TTS conversation lifecycle. Only one session owns conversational RoomIO at any moment.
 - A job-scoped recorder outlives individual sessions. A distinct recording participant is permissible if required for actual media capture, but it must never be linked as the candidate or dispatch another interview job.
 - A separate scoring process owns database task leases and LLM assessment requests. It does not depend on a live voice job.
-- The results server owns read-only queries. A scheduled cleanup process owns retention execution.
+- The terminal results commands own read-only queries; they are short-lived processes with no listener. A scheduled cleanup process owns retention execution.
 
 Define which owner closes every task/connection. Stage teardown must not accidentally call job shutdown, delete the room or cancel the other process's persisted scoring work.
 
@@ -134,7 +135,7 @@ end state and must not be read as existing migrations.
 | `checkpoints` | Stage, previous state, remaining time, last committed turn, recovery metadata |
 | `deletion_jobs` | Expired interview, cleanup phase, manifest, attempts and error; avoid keeping candidate content after deletion |
 
-Use parameterized SQL, foreign keys, explicit migration versions, short transactions, WAL, and busy timeouts. A single-interview limit does not remove concurrency between the worker, viewer, recorder and controller. No network call inside a transaction. Filesystem deletion and database deletion need a retryable workflow, not a pretend cross-system transaction.
+Use parameterized SQL, foreign keys, explicit migration versions, short transactions, WAL, and busy timeouts. A single-interview limit does not remove concurrency between the worker, results reader, recorder and controller. No network call inside a transaction. Filesystem deletion and database deletion need a retryable workflow, not a pretend cross-system transaction.
 
 ## 8. Scoring contract
 
@@ -154,7 +155,7 @@ Capture actual candidate and agent media with aligned timestamps, separate segme
 
 Recorder survives stage handoff, starts a new segment on reconnect, uses bounded queues and reports disk/full/write failures. If complete recording cannot continue, preserve existing data and surface the failure; never claim “all audio saved.” Recovery of a failed recorder can use the same bounded recovery policy when capture is required.
 
-Expiry is start time + 30 days. Use a local scheduled job plus startup catch-up. Exclude expired interviews from results immediately. Remove dependent rows, audio, snapshots, derived exports, temporary copies and candidate-bearing logs; make retries safe. Local deletion does not control provider retention or imply forensic erasure of an SSD. Do not create unmanaged backups.
+Expiry is start time + 30 days. Use a local scheduled job plus startup catch-up. Exclude expired interviews from the results commands immediately. Remove dependent rows, audio, snapshots, derived exports, temporary copies and candidate-bearing logs; make retries safe. Local deletion does not control provider retention or imply forensic erasure of an SSD. Do not create unmanaged backups.
 
 ## 10. Configuration and proposed commands
 
@@ -174,8 +175,8 @@ Expiry is start time + 30 days. Use a local scheduled job plus startup catch-up.
 | RECOVERY_WINDOW_SECONDS / RETENTION_DAYS | 120 / 30 |
 | MAX_ACTIVE_INTERVIEWS | 1 |
 | SQLITE_PATH / RECORDINGS_DIR | Under an owned ignored data directory |
-| RESULTS_HOST | 127.0.0.1 |
+| INTERVIEW_AGENT_NAME | interview-agent |
 
-Proposed application interfaces: `interview run --name "Candidate Name"`, `interview worker`, `interview results`, `interview cleanup`, and `interview status`. These commands must be implemented; they are not built-in LiveKit commands. Do not print secrets in diagnostics.
+Application interfaces: `interview run --name "Candidate Name"`, `interview join`, `interview status`, `interview worker`, `interview results list|show|recording`, `interview cleanup`, `interview devices`, `interview config-check`, and `interview-agent dev`. These commands must be implemented; they are not built-in LiveKit commands. The application serves no HTTP interface (docs/adr/0001-terminal-only-operator-interface.md). Do not print secrets in diagnostics, and escape untrusted content before writing it to a terminal.
 
-Local startup order: verify settings; start local LiveKit; migrate SQLite; start worker/results; start Agent Server; create interview/room/dispatch through the CLI workflow; connect terminal candidate audio; conduct interview; drain and close; let scoring complete. Configure retention scheduling separately. Resolve actual CLI flags and executable entrypoints during P00/P01 and document tested commands in P10.
+Local startup order: verify settings; start local LiveKit; migrate SQLite; start the scoring worker; start Agent Server; create interview/room/dispatch through the CLI workflow; connect terminal candidate audio; conduct interview; drain and close; let scoring complete. Configure retention scheduling separately. Resolve actual CLI flags and executable entrypoints during P00/P01 and document tested commands in P10.

@@ -5,7 +5,7 @@ the required product and phase sequence.
 
 ## 1. Objective
 
-Build a local Python application that conducts a short English voice interview from the terminal. The candidate enters only a name. One LiveKit room hosts two sequential interview stages, each with its own AgentSession and Agent. HR scoring runs concurrently with the technical interview. Store interview evidence and independent stage scores locally and expose a simple read-only HTML results page.
+Build a local Python application that conducts a short English voice interview from the terminal. The candidate enters only a name. One LiveKit room hosts two sequential interview stages, each with its own AgentSession and Agent. HR scoring runs concurrently with the technical interview. Store interview evidence and independent stage scores locally and expose them through read-only terminal commands.
 
 ## 2. Fixed requirements
 
@@ -27,7 +27,7 @@ Build a local Python application that conducts a short English voice interview f
 | R14 | Score each assessed competency 1–5, with evidence. Equal weights within each stage. Each stage has its own score; no combined score. Unassessed is null, not zero. |
 | R15 | Persist audio, transcripts, questions, answers, hints, timestamps, events, scoring and evidence. SQLite holds records; local files hold audio. |
 | R16 | Retain interview data for 30 days, then delete associated local data and recordings automatically. |
-| R17 | Simple localhost HTML results viewer only. No web-based candidate interview UI. |
+| R17 | Read-only terminal results commands only. The application serves no HTTP interface and has no web UI of any kind (see docs/adr/0001-terminal-only-operator-interface.md). |
 | R18 | Try to resume transient connection/provider failures for up to two minutes, pausing the active stage timer. Otherwise preserve an incomplete interview. |
 | R19 | No in-agent recording-consent step in this prototype, as requested. |
 
@@ -60,7 +60,7 @@ flowchart TD
     E --> F["Final technical snapshot + scoring"]
     D --> G["SQLite: independent stage scores"]
     F --> G
-    G --> H["Local HTML results"]
+    G --> H["Read-only terminal results"]
 ```
 
 The sessions do not speak concurrently. The parallel activity is scoring, which does not own RoomIO or a voice session. See ARCHITECTURE.md for exact ownership, dependency and persistence contracts.
@@ -78,7 +78,7 @@ The sessions do not speak concurrently. The parallel activity is scoring, which 
 | P06 | [Technical interview](plans/P06_TECHNICAL.md) | P04–P05 | Adaptive different cases, hints and observed boundaries |
 | P07 | [Scoring](plans/P07_SCORING.md) | P02, P05–P06 contracts | Recoverable background assessment, separate scores |
 | P08 | [Recovery and retention](plans/P08_RECOVERY_RETENTION.md) | P03–P07 | Two-minute recovery and 30-day expiry |
-| P09 | [Results](plans/P09_RESULTS.md) | P07–P08 | Read-only HTML with evidence and recording playback |
+| P09 | [Results](plans/P09_RESULTS.md) | P07–P08 | Read-only terminal results with evidence and resolved recording paths |
 | P10 | [Acceptance and runbook](plans/P10_ACCEPTANCE.md) | All previous | Verified local workflow and honest final report |
 
 Queue contracts and a fake scoring consumer exist before P07 so P03 can prove nonblocking handoff. P07 replaces the fake with real validated LLM scoring. If a live preflight gate is blocked, dependency-independent implementation may continue with fakes; no corresponding live gate is considered passed.
@@ -96,7 +96,7 @@ Queue contracts and a fake scoring consumer exist before P07 so P03 can prove no
 
 ## 7. Final acceptance
 
-- Real terminal microphone and playback participate in a local room; no browser interview dependency.
+- Real terminal microphone and playback participate in a local room; no browser dependency anywhere in the workflow.
 - Normal handoff preserves room SID and candidate identity, creates a distinct technical AgentSession, and leaves no overlapping audio owners.
 - HR score generation can be deliberately slow while technical questioning proceeds normally.
 - Deadline, final-answer completion, interruption, idle reminder and thinking-time behavior match policy.
@@ -104,13 +104,13 @@ Queue contracts and a fake scoring consumer exist before P07 so P03 can prove no
 - Every numeric competency score has valid transcript evidence; null competencies are excluded from the average and included in coverage reporting.
 - SQLite and audio survive normal restart; recovery preserves stage progress where possible and records gaps honestly.
 - A 120-second recovery failure yields an incomplete conversation; scoring failure alone does not.
-- Expired data disappears from the viewer and is removed by the local cleanup workflow, including recordings and derived files.
-- HTML renders untrusted content safely, is bound to localhost, and exposes no secrets or arbitrary filesystem paths.
+- Expired data disappears from the results commands and is removed by the local cleanup workflow, including recordings and derived files.
+- Terminal output renders untrusted content safely: control and ANSI sequences cannot be injected, recordings resolve only under the owned data root, and no secrets are printed.
 - Ruff, mypy, relevant pytest suites and architecture boundary checks pass. Real-device/provider checks are separately documented.
 - The runbook states versions, setup, configuration, startup order, candidate invocation, results access, restart/recovery, cleanup and shutdown.
 
 ## 8. Completion and scope control
 
-No multi-candidate scaling, CV ingestion, fixed question bank, automated hiring decision, cloud deployment, external database, complex frontend or additional AI provider is required. Do not add these to satisfy a personal architecture preference.
+No multi-candidate scaling, CV ingestion, fixed question bank, automated hiring decision, cloud deployment, external database, any web or HTTP interface, or additional AI provider is required. Do not add these to satisfy a personal architecture preference.
 
 For each phase, record implementation status and verification status separately in PROGRESS.md. The phase is complete only when its applicable gate is proven. Do not represent the presence of files as proof the interview works.
