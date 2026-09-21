@@ -1,11 +1,12 @@
 import asyncio
 import hashlib
+import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import aiosqlite
+import pytest
 
-from interview_app.adapters.fakes import FakeClock
 from interview_app.adapters.sqlite import (
     SqliteDatabase,
     SqliteInterviewStore,
@@ -14,7 +15,6 @@ from interview_app.adapters.sqlite import (
     SqliteScoreTaskStore,
     SqliteTranscriptStore,
 )
-from interview_app.adapters.web import ResultsHttpApplication
 from interview_app.application.results import InterviewResult
 from interview_app.domain.models import (
     DeliveryStatus,
@@ -41,14 +41,20 @@ from interview_app.domain.scoring import (
     EvidenceCitation,
     StageAssessment,
 )
+from interview_app.entrypoints import cli
 from interview_app.resources.rubrics import HR_RUBRIC_V1, TECHNICAL_RUBRIC_V1
 
 NOW = datetime(2026, 9, 21, 12, 0, tzinfo=UTC)
-MALICIOUS_NAME = 'Alex <script>alert("candidate")</script>'
-MALICIOUS_TEXT = '<img src=x onerror="alert(1)"> concrete answer'
+ESCAPE = "\x1b"
+MALICIOUS_NAME = f'Alex {ESCAPE}[2J{ESCAPE}[1;31m<script>alert("candidate")</script>'
+MALICIOUS_TEXT = f"{ESCAPE}]0;spoofed-title\x07 concrete answer"
 
 
-async def _seed_results(database: SqliteDatabase, recordings_root: Path) -> dict[str, str]:
+async def _seed_results(
+    database: SqliteDatabase,
+    recordings_root: Path,
+    now: datetime = NOW,
+) -> dict[str, str]:
     await database.migrate()
     interviews = SqliteInterviewStore(database)
     transcripts = SqliteTranscriptStore(database)
@@ -62,7 +68,7 @@ async def _seed_results(database: SqliteDatabase, recordings_root: Path) -> dict
             id=interview_id,
             candidate_name=MALICIOUS_NAME,
             state=InterviewState.TECH_ACTIVE,
-            created_at=NOW - timedelta(hours=1),
+            created_at=now - timedelta(hours=1),
         )
     )
     await transcripts.create_stage(
@@ -71,7 +77,7 @@ async def _seed_results(database: SqliteDatabase, recordings_root: Path) -> dict
             interview_id=interview_id,
             kind=StageKind.HR,
             state=StageState.CLOSED,
-            created_at=NOW - timedelta(hours=1),
+            created_at=now - timedelta(hours=1),
         )
     )
     await transcripts.append_turn(
@@ -82,13 +88,13 @@ async def _seed_results(database: SqliteDatabase, recordings_root: Path) -> dict
             text=MALICIOUS_TEXT,
             is_final=True,
             delivery_status=DeliveryStatus.DELIVERED,
-            occurred_at=NOW - timedelta(minutes=59),
+            occurred_at=now - timedelta(minutes=59),
         )
     )
     _, hr_task = await transcripts.finalize_snapshot_and_enqueue(
         hr_stage_id,
         rubric_version=HR_RUBRIC_V1.version,
-        created_at=NOW - timedelta(minutes=58),
+        created_at=now - timedelta(minutes=58),
     )
     await transcripts.create_stage(
         StageRecord(
@@ -96,19 +102,19 @@ async def _seed_results(database: SqliteDatabase, recordings_root: Path) -> dict
             interview_id=interview_id,
             kind=StageKind.TECHNICAL,
             state=StageState.ACTIVE,
-            created_at=NOW - timedelta(minutes=57),
+            created_at=now - timedelta(minutes=57),
         )
     )
     await transcripts.finalize_snapshot_and_enqueue(
         technical_stage_id,
         rubric_version=TECHNICAL_RUBRIC_V1.version,
-        created_at=NOW - timedelta(minutes=56),
+        created_at=now - timedelta(minutes=56),
     )
 
     tasks = SqliteScoreTaskStore(database)
     claimed = await tasks.claim_next(
         worker_id="results-test",
-        now=NOW - timedelta(minutes=55),
+        now=now - timedelta(minutes=55),
         lease_duration=timedelta(minutes=10),
     )
     assert claimed is not None and claimed.id == hr_task.id
@@ -138,7 +144,7 @@ async def _seed_results(database: SqliteDatabase, recordings_root: Path) -> dict
     await tasks.complete_with_result(
         hr_task.id,
         worker_id="results-test",
-        completed_at=NOW - timedelta(minutes=54),
+        completed_at=now - timedelta(minutes=54),
         model="offline/test",
         assessment=StageAssessment(
             rubric_version=HR_RUBRIC_V1.version,
@@ -164,8 +170,8 @@ async def _seed_results(database: SqliteDatabase, recordings_root: Path) -> dict
             sample_rate_hz=16_000,
             channels=1,
             sample_width_bytes=2,
-            started_at=NOW - timedelta(hours=1),
-            completed_at=NOW - timedelta(minutes=54),
+            started_at=now - timedelta(hours=1),
+            completed_at=now - timedelta(minutes=54),
             status=RecordingStatus.INCOMPLETE,
             failure="Synthetic gap",
             segments=(
@@ -192,7 +198,7 @@ async def _seed_results(database: SqliteDatabase, recordings_root: Path) -> dict
             id=duplicate_id,
             candidate_name=MALICIOUS_NAME,
             state=InterviewState.INCOMPLETE,
-            created_at=NOW - timedelta(hours=2),
+            created_at=now - timedelta(hours=2),
         )
     )
     await transcripts.create_stage(
@@ -201,13 +207,13 @@ async def _seed_results(database: SqliteDatabase, recordings_root: Path) -> dict
             interview_id=duplicate_id,
             kind=StageKind.HR,
             state=StageState.CLOSED,
-            created_at=NOW - timedelta(hours=2),
+            created_at=now - timedelta(hours=2),
         )
     )
     _, failed_task = await transcripts.finalize_snapshot_and_enqueue(
         duplicate_stage,
         rubric_version=HR_RUBRIC_V1.version,
-        created_at=NOW - timedelta(hours=2),
+        created_at=now - timedelta(hours=2),
     )
 
     async def mark_failed(connection: aiosqlite.Connection) -> None:
@@ -216,7 +222,7 @@ async def _seed_results(database: SqliteDatabase, recordings_root: Path) -> dict
             (
                 ScoreTaskState.FAILED_FINAL.value,
                 '<script>alert("failure")</script>',
-                NOW.isoformat(),
+                now.isoformat(),
                 failed_task.id,
             ),
         )
@@ -230,7 +236,7 @@ async def _seed_results(database: SqliteDatabase, recordings_root: Path) -> dict
             id=expired_id,
             candidate_name="Expired Candidate",
             state=InterviewState.INTERVIEW_FINISHED,
-            created_at=NOW - timedelta(days=30),
+            created_at=now - timedelta(days=30),
         )
     )
     await transcripts.create_stage(
@@ -239,7 +245,7 @@ async def _seed_results(database: SqliteDatabase, recordings_root: Path) -> dict
             interview_id=expired_id,
             kind=StageKind.HR,
             state=StageState.CLOSED,
-            created_at=NOW - timedelta(days=30),
+            created_at=now - timedelta(days=30),
         )
     )
     expired_recording = RecordingId("expired-recording")
@@ -251,8 +257,8 @@ async def _seed_results(database: SqliteDatabase, recordings_root: Path) -> dict
             sample_rate_hz=16_000,
             channels=1,
             sample_width_bytes=2,
-            started_at=NOW - timedelta(days=30),
-            completed_at=NOW - timedelta(days=30),
+            started_at=now - timedelta(days=30),
+            completed_at=now - timedelta(days=30),
             status=RecordingStatus.COMPLETE,
             failure=None,
             segments=(
@@ -312,56 +318,189 @@ def test_results_reader_keeps_duplicate_names_and_stage_assessments_separate(
     asyncio.run(exercise())
 
 
-def test_results_html_escapes_untrusted_text_and_media_is_id_authorized(tmp_path: Path) -> None:
-    async def exercise() -> None:
-        database = SqliteDatabase(tmp_path / "results.sqlite3")
-        recordings_root = tmp_path / "recordings"
-        identifiers = await _seed_results(database, recordings_root)
-        application = ResultsHttpApplication(
-            reader=SqliteResultsReader(database),
-            recordings_root=recordings_root,
-            clock=FakeClock(now=NOW),
+@pytest.fixture
+def seeded_cli(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> dict[str, str]:
+    """Seed a temporary store and point the CLI at it without reading the repository .env."""
+    recordings_root = tmp_path / "recordings"
+    database = SqliteDatabase(tmp_path / "results.sqlite3")
+    identifiers = asyncio.run(_seed_results(database, recordings_root, now=datetime.now(UTC)))
+    asyncio.run(_seed_traversal_segment(database, identifiers["interview_id"]))
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("SQLITE_PATH", str(tmp_path / "results.sqlite3"))
+    monkeypatch.setenv("RECORDINGS_DIR", str(recordings_root))
+    return identifiers
+
+
+async def _seed_traversal_segment(database: SqliteDatabase, interview_id: str) -> None:
+    """Record a segment whose stored path escapes the owned root, as a tampered store would."""
+    await SqliteRecordingManifestStore(database).save(
+        RecordingManifest(
+            id=RecordingId("traversal-recording"),
+            interview_id=InterviewId(interview_id),
+            sample_rate_hz=16_000,
+            channels=1,
+            sample_width_bytes=2,
+            started_at=datetime.now(UTC),
+            completed_at=datetime.now(UTC),
+            status=RecordingStatus.COMPLETE,
+            failure=None,
+            segments=(
+                RecordingSegment(
+                    id=RecordingSegmentId("traversal-segment"),
+                    recording_id=RecordingId("traversal-recording"),
+                    stage_id=StageId("visible-hr"),
+                    speaker=Speaker.CANDIDATE,
+                    relative_path="../../.env",
+                    offset_seconds=0,
+                    duration_seconds=1,
+                    checksum_sha256="0" * 64,
+                    status=RecordingStatus.COMPLETE,
+                    gaps=(),
+                ),
+            ),
         )
+    )
 
-        listing = await application.handle("GET", "/results")
-        assert listing.status == 200
-        assert MALICIOUS_NAME not in listing.body.decode()
-        assert "&lt;script&gt;alert" in listing.body.decode()
 
-        detail = await application.handle("GET", f"/results/{identifiers['interview_id']}")
-        document = detail.body.decode()
-        assert detail.status == 200
-        assert MALICIOUS_TEXT not in document
-        assert "&lt;img src=x onerror=&quot;alert(1)&quot;&gt;" in document
-        assert '<script>alert("summary")</script>' not in document
-        assert "HR and technical assessments are independent" in document
-        assert 'href="#turn-visible-answer"' in document
-        assert "Observed difficulty" in document and "Hints/assistance" in document
-        assert "Score: pending; coverage: pending" in document
-        assert "Recording issue: Synthetic gap" in document
-        assert "form" not in document.lower()
+def test_results_list_and_show_report_stages_independently(
+    seeded_cli: dict[str, str],
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    assert cli.main(["results", "list"]) == 0
+    listing = capsys.readouterr().out
+    assert "retained_interviews=2" in listing
+    assert f"interview_id={seeded_cli['interview_id']}" in listing
+    assert seeded_cli["expired_id"] not in listing
+    assert "stage=hr conversation=closed assessment=succeeded score=4.00/5 coverage=1/4" in listing
+    assert (
+        "stage=technical conversation=active assessment=pending score=pending coverage=pending"
+        in listing
+    )
 
-        failed = await application.handle("GET", f"/results/{identifiers['duplicate_id']}")
-        failed_document = failed.body.decode()
-        assert failed.status == 200
-        assert '<script>alert("failure")</script>' not in failed_document
-        assert "&lt;script&gt;alert(&quot;failure&quot;)&lt;/script&gt;" in failed_document
+    assert cli.main(["results", "show", "--interview-id", seeded_cli["interview_id"]]) == 0
+    detail = capsys.readouterr().out
+    assert "HR and technical assessments are independent" in detail
+    assert "stage=hr\n" in detail and "stage=technical\n" in detail
+    assert "evidence turn=visible-answer\n" in detail
+    assert "segment=visible-segment" in detail
+    assert "status=incomplete" in detail
+    assert "Synthetic gap" in detail
+    assert "assessment=pending" in detail and "score=pending coverage=pending" in detail
 
-        media = await application.handle("GET", f"/media/{identifiers['segment_id']}")
-        assert media.status == 200
-        assert media.body == identifiers["media"].encode()
-        assert media.headers["Content-Type"] == "audio/wav"
+    assert cli.main(["results", "show", "--interview-id", seeded_cli["duplicate_id"]]) == 0
+    failed = capsys.readouterr().out
+    assert "assessment=failed_final" in failed
+    assert "failure:" in failed
+    assert "competencies=none" in failed
+    assert "(no finalized transcript turns)" in failed
 
-        (recordings_root / "visible-recording" / "visible-segment.wav").unlink()
-        missing = await application.handle("GET", f"/media/{identifiers['segment_id']}")
-        expired_result = await application.handle("GET", f"/results/{identifiers['expired_id']}")
-        expired_media = await application.handle("GET", f"/media/{identifiers['expired_segment']}")
-        traversal = await application.handle("GET", "/media/../../.env")
-        write_attempt = await application.handle("POST", "/results")
-        assert missing.status == 404
-        assert expired_result.status == 404
-        assert expired_media.status == 404
-        assert traversal.status == 404
-        assert write_attempt.status == 405
 
-    asyncio.run(exercise())
+def test_results_output_neutralizes_terminal_control_sequences(
+    seeded_cli: dict[str, str],
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    assert cli.main(["results", "list"]) == 0
+    assert cli.main(["results", "show", "--interview-id", seeded_cli["interview_id"]]) == 0
+    rendered = capsys.readouterr().out
+
+    assert ESCAPE not in rendered
+    assert "\x07" not in rendered
+    assert "\\x1b[2J" in rendered
+    assert "\\x1b]0;spoofed-title\\x07" in rendered
+    # The visible characters of untrusted text are preserved; only the controls are escaped.
+    assert "concrete answer" in rendered
+    assert '<script>alert("candidate")</script>' in rendered
+    # Every untrusted value stays on the line the renderer placed it on.
+    assert all(
+        line.startswith(
+            (
+                " ",
+                "interview_id=",
+                "candidate=",
+                "state=",
+                "created_at=",
+                "note=",
+                "stage=",
+                "retained_interviews=",
+            )
+        )
+        or not line
+        for line in rendered.splitlines()
+    )
+
+
+def test_results_json_output_is_machine_readable_and_verbatim(
+    seeded_cli: dict[str, str],
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    assert cli.main(["results", "list", "--json"]) == 0
+    listing = json.loads(capsys.readouterr().out)
+    assert [item["interview_id"] for item in listing["interviews"]] == [
+        seeded_cli["interview_id"],
+        seeded_cli["duplicate_id"],
+    ]
+    assert listing["interviews"][0]["stages"][0]["average"] == 4.0
+    assert listing["interviews"][0]["stages"][1]["assessment_state"] == "pending"
+
+    assert (
+        cli.main(["results", "show", "--interview-id", seeded_cli["interview_id"], "--json"]) == 0
+    )
+    detail = json.loads(capsys.readouterr().out)
+    assert detail["candidate_name"] == MALICIOUS_NAME
+    hr_stage = detail["stages"][0]
+    technical_stage = detail["stages"][1]
+    assert hr_stage["kind"] == "hr" and technical_stage["kind"] == "technical"
+    assert hr_stage["transcript"][0]["text"] == MALICIOUS_TEXT
+    assert hr_stage["assessment"]["assessed_count"] == 1
+    assert hr_stage["assessment"]["competencies"][0]["evidence"][0]["turn_id"] == "visible-answer"
+    assert hr_stage["assessment"]["competencies"][1]["score"] is None
+    assert technical_stage["assessment"]["average"] is None
+    recordings = {item["segment_id"]: item for item in hr_stage["recordings"]}
+    assert recordings["visible-segment"]["manifest_failure"] == "Synthetic gap"
+
+
+def test_recording_command_resolves_only_authorized_owned_files(
+    seeded_cli: dict[str, str],
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    assert cli.main(["results", "recording", "--segment-id", seeded_cli["segment_id"]]) == 0
+    resolved = capsys.readouterr().out
+    expected = tmp_path / "recordings" / "visible-recording" / "visible-segment.wav"
+    assert f"path={expected}" in resolved
+    assert "checksum_sha256=" in resolved
+
+    assert cli.main(["results", "recording", "--segment-id", "traversal-segment"]) == 3
+    assert "error=" in capsys.readouterr().err
+
+    expected.unlink()
+    assert cli.main(["results", "recording", "--segment-id", seeded_cli["segment_id"]]) == 3
+    assert "unavailable" in capsys.readouterr().err
+
+
+def test_unknown_and_expired_identifiers_report_not_found(
+    seeded_cli: dict[str, str],
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    exit_codes = [
+        cli.main(["results", "show", "--interview-id", seeded_cli["expired_id"]]),
+        cli.main(["results", "show", "--interview-id", "no-such-interview"]),
+        cli.main(["results", "recording", "--segment-id", seeded_cli["expired_segment"]]),
+        cli.main(["results", "recording", "--segment-id", "no-such-segment"]),
+    ]
+    captured = capsys.readouterr()
+
+    assert exit_codes == [3, 3, 3, 3]
+    assert captured.out == ""
+    assert captured.err.count("error=") == 4
+
+
+def test_results_subcommand_is_required(capsys: pytest.CaptureFixture[str]) -> None:
+    with pytest.raises(SystemExit) as failure:
+        cli.main(["results"])
+
+    assert failure.value.code == 2
+    assert "list" in capsys.readouterr().err

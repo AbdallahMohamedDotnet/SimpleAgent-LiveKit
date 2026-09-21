@@ -1,26 +1,23 @@
-"""Offline end-to-end smoke test for the localhost P09 results server."""
+"""Offline end-to-end smoke test for the P09 read-only terminal results commands."""
 
 from __future__ import annotations
 
 import asyncio
 import hashlib
+import io
 import json
-import threading
-import urllib.error
-import urllib.request
+import os
+from contextlib import redirect_stderr, redirect_stdout
 from datetime import UTC, datetime
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from interview_app.adapters.clock import SystemClock
 from interview_app.adapters.sqlite import (
     SqliteDatabase,
     SqliteInterviewStore,
     SqliteRecordingManifestStore,
-    SqliteResultsReader,
     SqliteTranscriptStore,
 )
-from interview_app.adapters.web import ResultsHttpApplication, create_results_server
 from interview_app.domain.models import (
     DeliveryStatus,
     InterviewId,
@@ -39,9 +36,13 @@ from interview_app.domain.models import (
     TurnId,
     TurnRecord,
 )
+from interview_app.entrypoints import cli
+
+INJECTED_NAME = "Smoke \x1b[2J\x1b[1;31mcandidate"
+INJECTED_TEXT = "Evidence \x1b]0;spoofed\x07"
 
 
-async def _seed(database: SqliteDatabase, recordings_root: Path) -> bytes:
+async def _seed(database: SqliteDatabase, recordings_root: Path) -> None:
     now = datetime.now(UTC)
     await database.migrate()
     interview_id = InterviewId("p09-smoke-interview")
@@ -49,7 +50,7 @@ async def _seed(database: SqliteDatabase, recordings_root: Path) -> bytes:
     await SqliteInterviewStore(database).create(
         InterviewRecord(
             id=interview_id,
-            candidate_name="Smoke <script>alert(1)</script>",
+            candidate_name=INJECTED_NAME,
             state=InterviewState.INCOMPLETE,
             created_at=now,
         )
@@ -69,7 +70,7 @@ async def _seed(database: SqliteDatabase, recordings_root: Path) -> bytes:
             id=TurnId("p09-smoke-turn"),
             stage_id=stage_id,
             speaker=Speaker.CANDIDATE,
-            text="Evidence <img src=x onerror=alert(2)>",
+            text=INJECTED_TEXT,
             is_final=True,
             delivery_status=DeliveryStatus.DELIVERED,
             occurred_at=now,
@@ -107,67 +108,76 @@ async def _seed(database: SqliteDatabase, recordings_root: Path) -> bytes:
             ),
         )
     )
-    return media
 
 
-def _fetch(url: str) -> tuple[int, bytes]:
-    with urllib.request.urlopen(url, timeout=5) as response:
-        return response.status, response.read()
+def _run(*arguments: str) -> tuple[int, str, str]:
+    out, err = io.StringIO(), io.StringIO()
+    with redirect_stdout(out), redirect_stderr(err):
+        code = cli.main(list(arguments))
+    return code, out.getvalue(), err.getvalue()
 
 
 def main() -> None:
     with TemporaryDirectory(prefix="p09-results-smoke-") as temporary_directory:
         root = Path(temporary_directory)
-        database = SqliteDatabase(root / "interviews.sqlite3")
         recordings_root = root / "recordings"
-        expected_media = asyncio.run(_seed(database, recordings_root))
-        application = ResultsHttpApplication(
-            reader=SqliteResultsReader(database),
-            recordings_root=recordings_root,
-            clock=SystemClock(),
-        )
-        server = create_results_server(application, host="127.0.0.1", port=0)
-        thread = threading.Thread(target=server.serve_forever, daemon=True)
-        thread.start()
-        host, port = server.server_address[:2]
-        base = f"http://{host}:{port}"
+        sqlite_path = root / "interviews.sqlite3"
+        asyncio.run(_seed(SqliteDatabase(sqlite_path), recordings_root))
+        previous_directory = Path.cwd()
+        os.environ["SQLITE_PATH"] = str(sqlite_path)
+        os.environ["RECORDINGS_DIR"] = str(recordings_root)
+        # Run from the temporary directory so the repository .env is not read.
+        os.chdir(root)
         try:
-            list_status, listing = _fetch(f"{base}/results")
-            detail_status, detail = _fetch(f"{base}/results/p09-smoke-interview")
-            media_status, media = _fetch(f"{base}/media/p09-smoke-segment")
-            try:
-                urllib.request.urlopen(
-                    urllib.request.Request(f"{base}/results", method="POST"), timeout=5
-                )
-            except urllib.error.HTTPError as error:
-                post_status = error.code
-            else:
-                raise RuntimeError("Read-only results endpoint accepted POST.")
+            list_exit, listing, _ = _run("results", "list")
+            show_exit, detail, _ = _run("results", "show", "--interview-id", "p09-smoke-interview")
+            json_exit, detail_json, _ = _run(
+                "results", "show", "--interview-id", "p09-smoke-interview", "--json"
+            )
+            recording_exit, recording, _ = _run(
+                "results", "recording", "--segment-id", "p09-smoke-segment"
+            )
+            missing_exit, missing_out, missing_err = _run(
+                "results", "recording", "--segment-id", "no-such-segment"
+            )
         finally:
-            server.shutdown()
-            server.server_close()
-            thread.join(timeout=5)
+            os.chdir(previous_directory)
+        decoded = json.loads(detail_json)
+        resolved_path = Path(
+            next(
+                line.removeprefix("path=")
+                for line in recording.splitlines()
+                if line.startswith("path=")
+            )
+        )
+        recording_inside_owned_root = resolved_path.is_relative_to(recordings_root.resolve())
 
     checks = {
-        "list_status": list_status,
-        "detail_status": detail_status,
-        "media_status": media_status,
-        "post_status": post_status,
-        "candidate_html_escaped": b"<script>alert(1)</script>" not in listing,
-        "transcript_html_escaped": b"<img src=x onerror=alert(2)>" not in detail,
-        "media_matches": media == expected_media,
+        "list_exit": list_exit,
+        "show_exit": show_exit,
+        "json_exit": json_exit,
+        "recording_exit": recording_exit,
+        "missing_exit": missing_exit,
+        "control_sequences_escaped": "\x1b" not in listing + detail + recording
+        and "\\x1b[2J" in listing,
+        "json_keeps_text_verbatim": decoded["stages"][0]["transcript"][0]["text"] == INJECTED_TEXT,
+        "recording_inside_owned_root": recording_inside_owned_root,
+        "missing_reported_on_stderr": missing_out == "" and "error=" in missing_err,
         "provider_request_made": False,
     }
-    if checks != {
-        "list_status": 200,
-        "detail_status": 200,
-        "media_status": 200,
-        "post_status": 405,
-        "candidate_html_escaped": True,
-        "transcript_html_escaped": True,
-        "media_matches": True,
+    expected = {
+        "list_exit": 0,
+        "show_exit": 0,
+        "json_exit": 0,
+        "recording_exit": 0,
+        "missing_exit": 3,
+        "control_sequences_escaped": True,
+        "json_keeps_text_verbatim": True,
+        "recording_inside_owned_root": True,
+        "missing_reported_on_stderr": True,
         "provider_request_made": False,
-    }:
+    }
+    if checks != expected:
         raise RuntimeError(f"P09 smoke checks failed: {checks}")
     print(json.dumps({"status": "passed", **checks}, indent=2))
 

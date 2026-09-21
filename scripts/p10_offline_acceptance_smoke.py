@@ -92,13 +92,13 @@ def main() -> None:
         "recovery": recovery_retention["recovery"],
         "retention": recovery_retention["retention"],
         "results": {
-            "list_status": results["list_status"],
-            "detail_status": results["detail_status"],
-            "media_status": results["media_status"],
-            "post_status": results["post_status"],
-            "untrusted_html_escaped": bool(
-                results["candidate_html_escaped"] and results["transcript_html_escaped"]
-            ),
+            "list_exit": results["list_exit"],
+            "show_exit": results["show_exit"],
+            "json_exit": results["json_exit"],
+            "recording_exit": results["recording_exit"],
+            "missing_exit": results["missing_exit"],
+            "untrusted_control_sequences_escaped": results["control_sequences_escaped"],
+            "recording_inside_owned_root": results["recording_inside_owned_root"],
         },
         "provider_request_made": False,
         "live_audio_verified": False,

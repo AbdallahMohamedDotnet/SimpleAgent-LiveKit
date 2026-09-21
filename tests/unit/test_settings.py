@@ -1,6 +1,6 @@
 from interview_app.settings import (
     ConfigurationError,
-    ControlSettings,
+    LaunchSettings,
     ResultsSettings,
     ScoringSettings,
     Settings,
@@ -79,40 +79,34 @@ def test_scoring_worker_settings_require_only_its_owned_provider_and_store() -> 
     assert "worker-secret" not in repr(settings)
 
 
-def test_results_settings_are_localhost_only() -> None:
+def test_results_settings_describe_only_local_read_only_data() -> None:
     settings = ResultsSettings.from_mapping({})
-    assert settings.host == "127.0.0.1"
-    assert settings.port == 8080
+    assert settings.sqlite_path.as_posix() == "data/interviews.sqlite3"
+    assert settings.recordings_root.as_posix() == "data/recordings"
+    assert not hasattr(settings, "host") and not hasattr(settings, "port")
 
     try:
-        ResultsSettings.from_mapping({"RESULTS_HOST": "0.0.0.0"})
+        ResultsSettings.from_mapping({"RECORDINGS_DIR": "  "})
     except ConfigurationError as error:
-        assert "fixed at 127.0.0.1" in str(error)
+        assert "must not be blank" in str(error)
     else:
-        raise AssertionError("The results viewer must remain localhost-only.")
-
-    try:
-        ResultsSettings.from_mapping({"RESULTS_PORT": "70000"})
-    except ConfigurationError as error:
-        assert "between 0 and 65535" in str(error)
-    else:
-        raise AssertionError("An invalid results port must be rejected.")
+        raise AssertionError("A blank recording root must be rejected.")
 
 
-def test_control_settings_are_localhost_only_and_keep_secrets_redacted() -> None:
-    settings = ControlSettings.from_mapping(valid_values())
-    assert settings.host == "127.0.0.1"
-    assert settings.port == 8090
+def test_launch_settings_keep_secrets_redacted_and_declare_no_http_surface() -> None:
+    settings = LaunchSettings.from_mapping(valid_values())
     assert settings.agent_name == "interview-agent"
+    assert settings.livekit_url == "ws://127.0.0.1:7880"
     assert "local-secret" not in repr(settings)
+    assert not hasattr(settings, "host") and not hasattr(settings, "port")
 
     for values in (
-        {**valid_values(), "CONTROL_HOST": "0.0.0.0"},
-        {**valid_values(), "CONTROL_PORT": "70000"},
+        {**valid_values(), "LIVEKIT_API_SECRET": ""},
+        {**valid_values(), "INTERVIEW_AGENT_NAME": " "},
     ):
         try:
-            ControlSettings.from_mapping(values)
+            LaunchSettings.from_mapping(values)
         except ConfigurationError:
             pass
         else:
-            raise AssertionError("Unsafe control console settings were accepted.")
+            raise AssertionError("Incomplete launch settings were accepted.")

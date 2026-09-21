@@ -1,4 +1,4 @@
-"""LiveKit room and explicit-dispatch adapter for the operator console."""
+"""LiveKit room and explicit-dispatch adapter for the terminal launch commands."""
 
 import json
 
