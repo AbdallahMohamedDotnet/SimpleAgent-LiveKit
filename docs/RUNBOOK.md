@@ -97,6 +97,7 @@ LD_LIBRARY_PATH="$PWD/.tools/portaudio/usr/lib/x86_64-linux-gnu" \
 identities, sends an explicit dispatch to `interview-agent`, and then joins the room with terminal
 microphone and speaker audio. It prints the generated `interview_id`; keep it for the status,
 results and join commands.
+<<<<<<< HEAD
 
 Use `--input-device` and `--output-device` with a device name or numeric index when the system
 defaults are unsuitable. To rejoin an interview that already exists, run
@@ -105,6 +106,13 @@ room has a running interviewer, since no agent is dispatched on a rejoin. The te
 live `[Interviewer]` / `[You]` transcript (and replays the transcript so far on rejoin). Stop the
 terminal participant with `Ctrl-C`.
 
+=======
+
+Use `--input-device` and `--output-device` with a device name or numeric index when the system
+defaults are unsuitable. To rejoin an interview that already exists, run
+`interview join --interview-id ID`. Stop the terminal participant with `Ctrl-C`.
+
+>>>>>>> origin/main
 Terminal 5 — monitor and read results while or after the interview runs:
 
 ```bash

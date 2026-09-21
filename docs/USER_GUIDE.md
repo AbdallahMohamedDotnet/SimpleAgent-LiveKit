@@ -193,6 +193,7 @@ UV_CACHE_DIR=.tools/uv-cache .tools/bin/uv run interview join --interview-id INT
 `interview_id`, and connects terminal audio. Use `--input-device` and `--output-device` when
 necessary. This command owns the microphone and speaker.
 
+<<<<<<< HEAD
 While you are in the room the terminal prints the conversation as it happens, one line per
 spoken turn (`[Interviewer] ...` and `[You] ...`); rejoining first replays the transcript so far.
 
@@ -201,6 +202,8 @@ is `incomplete` or finished, or whose room no longer exists (a restarted LiveKit
 forgets every room), is refused with an explanation, because no agent would answer. Start a new
 interview instead.
 
+=======
+>>>>>>> origin/main
 ### Terminal 5 — status and results
 
 ```bash
