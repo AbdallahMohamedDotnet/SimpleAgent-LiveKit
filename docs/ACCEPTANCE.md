@@ -19,13 +19,13 @@ microphone, speaker, or provider evidence.
 | R08 | PARTIAL | Fake-clock tests prove both 300-second policies, completion of an answer in progress, overrun recording, and no later question. Live speech-boundary behavior is unverified. |
 | R09 | PARTIAL | Settings and prompts enforce English and scoring resources exclude grammar/accent/fluency. Provider output is unverified. |
 | R10 | PARTIAL | Genuine-idle, five-second reminder, debounce, and 20-second requested-thinking policies pass. Live VAD, barge-in, and interruption behavior are blocked. |
-| R11 | BLOCKED | The terminal RTC client published microphone audio and ElevenLabs realtime STT returned text. A direct TTS probe returned HTTP 402, so both voices and speaker playback remain blocked. |
+| R11 | PARTIAL | The terminal RTC client published microphone audio and ElevenLabs realtime STT returned text. Both voices now stream TTS audio after replacing a library HR voice (the cause of the earlier HTTP 402), so only in-room speaker playback remain blocked. |
 | R12 | PARTIAL | OpenRouter with the fixed Sonnet 5 model generated the opening HR question live. Live assessment and all-task verification remain. |
 | R13 | PARTIAL | Snapshot/task enqueue is transactional, scoring has no room I/O, and handoff does not await scoring. Deliberately slow live HR scoring during technical speech is unverified. |
 | R14 | PARTIAL | Strict 1–5 evidence validation, equal stage averages, null exclusion, coverage, and separate stage results pass offline. Provider calibration is blocked. |
 | R15 | PARTIAL | SQLite turns/snapshots/events/scores and synthetic playable WAV manifests survive restart. Real observable room recording, case/hint evidence, and media alignment are incomplete. |
 | R16 | PASSED | Exact 30-day UTC hiding/deletion, artifacts, retryable failures, worker races, startup command, and installed daily user timer pass locally. Provider-side retention is outside local control. |
-| R17 | PASSED | The loopback-only read-only HTML viewer passes escaping, expired-data, media-ID, traversal, duplicate-name, incomplete/pending/failed, and POST rejection tests. |
+| R17 | PASSED | The read-only `interview results list/show/recording` commands pass terminal-escaping, expired-data, segment-ID, traversal, duplicate-name, incomplete/pending/failed and exit-code tests. No HTTP surface remains; see ADR 0001. |
 | R18 | PARTIAL | Fake-clock transient/permanent recovery and one persisted 120-second deadline pass. Production checkpoint emission and real track/participant/recorder rebinding are incomplete. |
 | R19 | PASSED | No in-agent recording-consent flow is present; operator documentation still describes local evidence handling. |
 
@@ -33,7 +33,7 @@ microphone, speaker, or provider evidence.
 
 | Scenario | Status | Evidence and remaining gap |
 |---|---|---|
-| Terminal microphone/playback in one local room | BLOCKED | The RTC client published an unmuted microphone track and live STT succeeded. TTS returned HTTP 402, so no agent audio frames or speaker playback were verified. |
+| Terminal microphone/playback in one local room | PARTIAL | The RTC client published an unmuted microphone track and live STT succeeded. TTS for both voices now streams at the provider level, but no in-room agent audio frames or speaker playback were verified. |
 | Same-room two-session handoff without overlapping I/O | PARTIAL | Same SID/identity and distinct sessions passed in a real room; audible output drain and ownership remain unverified. |
 | Slow HR scoring while technical conversation continues | PARTIAL | Queueing and separation of score worker from voice I/O pass, and the production coordinator starts technical without awaiting HR scoring; live provider speech remains unverified. |
 | Deadline, final answer, interruption, idle, thinking time | PARTIAL | Deterministic policy coverage and live STT pass; real TTS/VAD/barge-in and deadline behavior remain blocked or unverified. |
@@ -41,10 +41,10 @@ microphone, speaker, or provider evidence.
 | Evidence-valid independent scores and coverage | PARTIAL | Strict parser, durable worker, restart, evidence IDs, null arithmetic, and UI rendering pass with local deterministic assessment; live Sonnet 5 scoring is unverified. |
 | Restartable evidence/audio and honest recovery gaps | PARTIAL | SQLite and synthetic WAV/recovery manifests survive restart; real captured audio and live reconnect are blocked. |
 | 120-second failure is incomplete; score failure is independent | PARTIAL | Offline state/retry behavior passes; production controller wiring remains. |
-| Expiry hides and deletes all owned local data | PASSED | Fake-clock exact-boundary, viewer hiding, safe artifact deletion, failure retry, and worker race tests pass. |
-| Safe localhost results viewer | PASSED | Real ephemeral HTTP smoke returns list/detail/media 200 and POST 405 with escaped untrusted content and ID-authorized media. |
+| Expiry hides and deletes all owned local data | PASSED | Fake-clock exact-boundary, results-command hiding, safe artifact deletion, failure retry, and worker race tests pass. |
+| Safe read-only terminal results | PASSED | The offline CLI smoke exits 0 for list/show/JSON/recording and 3 for an unknown segment, escapes injected ANSI sequences, and resolves the recording only inside the owned root. |
 | Quality and architecture gates | PASSED | See the dated P10 report in `PROGRESS.md` for the exact commands and counts from the latest run. |
-| Reproducible operating instructions | PARTIAL | `docs/RUNBOOK.md` covers the server, Agent Server, terminal candidate, worker, consoles, device selection, and explicitly identifies the remaining host/provider gates. |
+| Reproducible operating instructions | PARTIAL | `docs/RUNBOOK.md` covers the server, Agent Server, terminal candidate, worker, status/results commands, device selection, and explicitly identifies the remaining host/provider gates. |
 
 ## Known limitations of the screening result
 

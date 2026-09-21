@@ -11,12 +11,14 @@ Current status is tracked only in [PROGRESS.md](../PROGRESS.md).
 ## Current state
 
 The Ubuntu runbook, R01–R19 acceptance matrix, aggregate provider-free smoke, production ROOM
-Agent Server, and terminal RTC candidate are implemented. A real local dispatch has been claimed
+Agent Server, terminal RTC candidate and terminal results commands are implemented. The
+application has no HTTP surface (ADR [0001](../docs/adr/0001-terminal-only-operator-interface.md));
+the runbook and matrix describe the CLI workflow only. A real local dispatch has been claimed
 by the registered agent. The complete quality baseline passes Ruff formatting/lint, strict mypy
-for 67 source files, and 52 pytest tests. A terminal microphone track, ElevenLabs STT, and the
-opening OpenRouter response are live-verified. This is not end-to-end voice acceptance:
-ElevenLabs TTS returns HTTP 402, so speaker output, both-voice handoff, and completion remain
-blocked.
+for the packaged sources, and the pytest suite. A terminal microphone track, ElevenLabs STT, and the
+opening OpenRouter response are live-verified, and STT final transcripts plus TTS for both voices
+pass provider-level live probes. This is not end-to-end voice acceptance: in-room speaker output,
+both-voice handoff, and completion remain unverified.
 
 ## Objective and scope
 
@@ -32,8 +34,8 @@ Prove the full local workflow and deliver reproducible operating instructions. D
 6. Test duplicate candidate names and a second active-interview request. Ensure neither corrupts another record.
 7. Advance a test clock to exercise retention, including worker/cleanup races and failed file deletion; verify old data is hidden and new data remains.
 8. Calibrate HR/technical assessment on synthetic strong, weak, assisted and incomplete evidence. Record limitations of the short screening format.
-9. Review SOLID boundaries: controller contains no SQL/HTML/provider construction; domain/application import restrictions hold; fakes obey contracts; resources have explicit owners.
-10. Write docs/RUNBOOK.md with tested exact installation/configuration commands, startup order, CLI invocation, device selection, results URL, cleanup scheduling, recovery, shutdown and troubleshooting.
+9. Review SOLID boundaries: controller contains no SQL, rendering or provider construction; domain/application import restrictions hold; fakes obey contracts; resources have explicit owners.
+10. Write docs/RUNBOOK.md with tested exact installation/configuration commands, startup order, CLI invocation, device selection, results commands, cleanup scheduling, recovery, shutdown and troubleshooting.
 11. Write docs/ACCEPTANCE.md mapping every R01–R19 requirement to evidence, with PASSED/FAILED/BLOCKED status. Update PROGRESS.md and do not label skipped live checks as passes.
 
 ## Deliverables
@@ -45,7 +47,7 @@ Prove the full local workflow and deliver reproducible operating instructions. D
 ## Acceptance gate
 
 - All MAIN_PLAN.md final acceptance items are evidenced or explicitly blocked; completion cannot be claimed while required live gates remain blocked.
-- The operator can start the local server/agent/worker/results workflow and run an interview with name-only input.
+- The operator can start the local server/agent/worker workflow from the terminal, run an interview with name-only input, and read status and results without a browser.
 - Same-room two-session handoff, parallel HR scoring, persistence, recovery and retention work end to end.
 - No source secrets, real-candidate test fixtures, undocumented provider substitutions or unnecessary cloud dependencies remain.
 
