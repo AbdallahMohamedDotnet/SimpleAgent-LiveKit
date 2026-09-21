@@ -14,3 +14,6 @@ __pycache__/
 
 # Runtime data, including candidate evidence and recordings
 data/
+
+# Local backups of the secrets file
+.env.bak*
