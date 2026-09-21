@@ -12,6 +12,7 @@ import aiosqlite
 
 from interview_app.adapters.sqlite.database import SqliteDatabase
 from interview_app.application.ports.interview_store import (
+    ActiveInterviewExistsError,
     InterviewNotFoundError,
     InterviewStateConflictError,
 )
@@ -84,22 +85,9 @@ class SqliteInterviewStore:
                 InterviewState.INTERVIEW_FINISHED,
                 InterviewState.INCOMPLETE,
             }:
-                active = await _fetchone(
-                    connection,
-                    """
-                    SELECT id FROM interviews
-                    WHERE state NOT IN (?, ?)
-                    LIMIT 1
-                    """,
-                    (
-                        InterviewState.INTERVIEW_FINISHED.value,
-                        InterviewState.INCOMPLETE.value,
-                    ),
-                )
+                active = await _fetch_active_interview(connection)
                 if active is not None:
-                    raise InterviewStateConflictError(
-                        f"Active interview already exists: {active['id']}"
-                    )
+                    raise ActiveInterviewExistsError(InterviewId(active["id"]))
             try:
                 await connection.execute(
                     """
@@ -148,6 +136,13 @@ class SqliteInterviewStore:
             if row is None:
                 raise InterviewNotFoundError(f"Unknown or expired interview: {interview_id}")
             return _interview(row)
+
+        return await self._database.read(operation)
+
+    async def find_active(self) -> InterviewRecord | None:
+        async def operation(connection: aiosqlite.Connection) -> InterviewRecord | None:
+            row = await _fetch_active_interview(connection)
+            return _interview(row) if row is not None else None
 
         return await self._database.read(operation)
 
@@ -1349,6 +1344,20 @@ async def _ensure_stage_is_retained(
         started_at, now=now
     ):
         raise EvidenceConflictError("Stage belongs to an expired interview.")
+
+
+async def _fetch_active_interview(connection: aiosqlite.Connection) -> aiosqlite.Row | None:
+    """The single authoritative query behind the one-active-interview rule (R03)."""
+    return await _fetchone(
+        connection,
+        """
+        SELECT * FROM interviews
+        WHERE state NOT IN (?, ?)
+        ORDER BY created_at
+        LIMIT 1
+        """,
+        (InterviewState.INTERVIEW_FINISHED.value, InterviewState.INCOMPLETE.value),
+    )
 
 
 async def _upsert_checkpoint(

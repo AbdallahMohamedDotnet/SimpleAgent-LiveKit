@@ -14,7 +14,10 @@ from interview_app.application.ports.interview_launch import (
     LaunchRequest,
     LaunchStatus,
 )
-from interview_app.application.ports.interview_store import InterviewStore
+from interview_app.application.ports.interview_store import (
+    ActiveInterviewExistsError,
+    InterviewStore,
+)
 from interview_app.application.results import InterviewResult
 from interview_app.domain.models import (
     DeliveryStatus,
@@ -79,6 +82,13 @@ class StartInterview:
             raise InvalidCandidateNameError("Candidate name must not be blank.")
         if len(normalized_name) > 120:
             raise InvalidCandidateNameError("Candidate name must be 120 characters or fewer.")
+
+        # Refuse before dispatching: an agent sent to a room whose interview is then rejected by
+        # the one-active-interview rule would join, find no record, and exit without speaking.
+        # The store's create() still enforces the rule atomically for the rare concurrent case.
+        active = await self._interviews.find_active()
+        if active is not None:
+            raise ActiveInterviewExistsError(active.id)
 
         identifier = InterviewId(str(uuid4()))
         room_name = f"interview-{identifier}"

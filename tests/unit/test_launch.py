@@ -9,9 +9,12 @@ from interview_app.application.ports.interview_launch import (
     LaunchRequest,
     LaunchStatus,
 )
-from interview_app.application.ports.interview_store import InterviewStateConflictError
+from interview_app.application.ports.interview_store import (
+    ActiveInterviewExistsError,
+    InterviewStateConflictError,
+)
 from interview_app.application.results import InterviewResult
-from interview_app.domain.models import InterviewId, InterviewState
+from interview_app.domain.models import InterviewId, InterviewRecord, InterviewState
 
 
 class EmptyEvidenceReader:
@@ -80,7 +83,7 @@ def test_start_interview_generates_bindings_and_exposes_mission_status() -> None
     asyncio.run(exercise())
 
 
-def test_start_interview_rejects_bad_names_and_cancels_room_on_store_conflict() -> None:
+def test_start_interview_rejects_bad_names_and_never_dispatches_a_second_interview() -> None:
     async def exercise() -> None:
         gateway = FakeLaunchGateway()
         store = InMemoryInterviewStore()
@@ -95,13 +98,39 @@ def test_start_interview_rejects_bad_names_and_cancels_room_on_store_conflict() 
                 raise AssertionError("An invalid candidate name was accepted.")
         assert not gateway.requests
 
-        await start.execute("First candidate")
+        first = await start.execute("First candidate")
         try:
             await start.execute("Second candidate")
+        except ActiveInterviewExistsError as error:
+            assert error.active_id == first.interview.id
+        else:
+            raise AssertionError("A second active interview was accepted.")
+        # The agent must never be sent to a room whose interview will be rejected: it would
+        # join, find no record, and leave without speaking.
+        assert len(gateway.requests) == 1
+        assert gateway.cancelled == []
+
+    asyncio.run(exercise())
+
+
+class FailingCreateStore(InMemoryInterviewStore):
+    """Pass the active-interview check, then fail to persist, as a concurrent writer would."""
+
+    async def create(self, record: InterviewRecord) -> None:
+        raise InterviewStateConflictError("Concurrent create won the race.")
+
+
+def test_start_interview_cancels_the_room_when_persistence_fails_after_dispatch() -> None:
+    async def exercise() -> None:
+        gateway = FakeLaunchGateway()
+        start = StartInterview(clock=FakeClock(), interviews=FailingCreateStore(), gateway=gateway)
+
+        try:
+            await start.execute("Candidate Name")
         except InterviewStateConflictError:
             pass
         else:
-            raise AssertionError("A second active interview was accepted.")
-        assert gateway.cancelled == [gateway.requests[-1].room_name]
+            raise AssertionError("A failed persistence must propagate.")
+        assert gateway.cancelled == [gateway.requests[0].room_name]
 
     asyncio.run(exercise())

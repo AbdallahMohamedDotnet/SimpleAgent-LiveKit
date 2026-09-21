@@ -7,6 +7,7 @@ from uuid import uuid4
 
 from interview_app.application.ports.clock import Clock
 from interview_app.application.ports.interview_store import (
+    ActiveInterviewExistsError,
     InterviewNotFoundError,
     InterviewStateConflictError,
 )
@@ -45,6 +46,9 @@ class FakeClock:
         self._now += timedelta(seconds=seconds)
 
 
+_CLOSED_STATES = frozenset({InterviewState.INTERVIEW_FINISHED, InterviewState.INCOMPLETE})
+
+
 class InMemoryInterviewStore:
     def __init__(self) -> None:
         self._records: dict[InterviewId, InterviewRecord] = {}
@@ -52,15 +56,15 @@ class InMemoryInterviewStore:
     async def create(self, record: InterviewRecord) -> None:
         if record.id in self._records:
             raise InterviewStateConflictError(f"Interview already exists: {record.id}")
-        if record.state not in {
-            InterviewState.INTERVIEW_FINISHED,
-            InterviewState.INCOMPLETE,
-        } and any(
-            existing.state not in {InterviewState.INTERVIEW_FINISHED, InterviewState.INCOMPLETE}
-            for existing in self._records.values()
-        ):
-            raise InterviewStateConflictError("An active interview already exists.")
+        if record.state not in _CLOSED_STATES and (active := await self.find_active()):
+            raise ActiveInterviewExistsError(active.id)
         self._records[record.id] = record
+
+    async def find_active(self) -> InterviewRecord | None:
+        return next(
+            (item for item in self._records.values() if item.state not in _CLOSED_STATES),
+            None,
+        )
 
     async def get(self, interview_id: InterviewId) -> InterviewRecord:
         try:
