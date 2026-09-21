@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import importlib
+import logging
 from collections.abc import Callable
 from dataclasses import dataclass
 from types import ModuleType
@@ -11,11 +12,26 @@ from typing import Any
 
 from livekit import api, rtc
 
+from interview_app.domain.models import Speaker
 from interview_app.settings import Secret
+
+logger = logging.getLogger(__name__)
+
+# The Agents SDK publishes every spoken turn on this text-stream topic. The candidate's own
+# speech arrives as full-text snapshots flagged interim or final; the interviewer's speech is one
+# stream per utterance that closes when the utterance is complete.
+TRANSCRIPTION_TOPIC = "lk.transcription"
+TRANSCRIPTION_FINAL_ATTRIBUTE = "lk.transcription_final"
 
 
 class CandidateAudioUnavailableError(RuntimeError):
     """Raised when local PortAudio devices cannot support the terminal participant."""
+
+
+@dataclass(frozen=True, slots=True)
+class TranscriptLine:
+    speaker: Speaker
+    text: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -118,9 +134,12 @@ class TerminalCandidateClient:
         connection: CandidateConnection,
         *,
         audio: SoundDeviceBackend | None = None,
+        on_transcript: Callable[[TranscriptLine], None] | None = None,
     ) -> None:
         self._connection = connection
         self._audio = audio or SoundDeviceBackend()
+        self._on_transcript = on_transcript
+        self._transcript_tasks: set[asyncio.Task[None]] = set()
         self._input_queue: asyncio.Queue[bytes] = asyncio.Queue(maxsize=100)
         self._playback_tasks: set[asyncio.Task[None]] = set()
 
@@ -130,6 +149,8 @@ class TerminalCandidateClient:
         disconnected = asyncio.Event()
         room.on("disconnected", lambda *_: disconnected.set())
         room.on("track_subscribed", self._on_track_subscribed)
+        if self._on_transcript is not None:
+            room.register_text_stream_handler(TRANSCRIPTION_TOPIC, self._on_transcription_stream)
         token = (
             api.AccessToken(
                 self._connection.api_key.reveal(),
@@ -169,10 +190,11 @@ class TerminalCandidateClient:
             if capture_task is not None:
                 capture_task.cancel()
                 await asyncio.gather(capture_task, return_exceptions=True)
-            for task in tuple(self._playback_tasks):
+            pending = (*self._playback_tasks, *self._transcript_tasks)
+            for task in pending:
                 task.cancel()
-            if self._playback_tasks:
-                await asyncio.gather(*self._playback_tasks, return_exceptions=True)
+            if pending:
+                await asyncio.gather(*pending, return_exceptions=True)
             await source.aclose()
             if room.isconnected():
                 await room.disconnect()
@@ -192,6 +214,28 @@ class TerminalCandidateClient:
                 samples_per_channel=len(chunk) // 2,
             )
             await source.capture_frame(frame)
+
+    def _on_transcription_stream(self, reader: rtc.TextStreamReader, sender_identity: str) -> None:
+        task = asyncio.create_task(self._forward_transcription(reader, sender_identity))
+        self._transcript_tasks.add(task)
+        task.add_done_callback(self._transcript_tasks.discard)
+
+    async def _forward_transcription(
+        self, reader: rtc.TextStreamReader, sender_identity: str
+    ) -> None:
+        from_candidate = sender_identity == self._connection.identity
+        is_final = (reader.info.attributes or {}).get(TRANSCRIPTION_FINAL_ATTRIBUTE) == "true"
+        text = (await reader.read_all()).strip()
+        if not text or self._on_transcript is None:
+            return
+        if from_candidate and not is_final:
+            return  # An interim guess that a later snapshot will replace.
+        speaker = Speaker.CANDIDATE if from_candidate else Speaker.INTERVIEWER
+        try:
+            self._on_transcript(TranscriptLine(speaker=speaker, text=text))
+        except Exception:
+            # A display problem must never end the interview.
+            logger.exception("Transcript display failed.")
 
     def _on_track_subscribed(
         self,
