@@ -2,19 +2,27 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 from interview_app.adapters.livekit.candidate import (
     CandidateConnection,
     SoundDeviceBackend,
     TerminalCandidateClient,
+    TranscriptLine,
 )
-from interview_app.adapters.sqlite import SqliteDatabase, SqliteInterviewStore
+from interview_app.adapters.sqlite import (
+    SqliteDatabase,
+    SqliteInterviewStore,
+    SqliteResultsReader,
+)
+from interview_app.adapters.terminal.sanitize import sanitize_line
 from interview_app.application.ports.interview_launch import InterviewLaunchError
 from interview_app.application.ports.interview_store import (
     ActiveInterviewExistsError,
     InterviewStateConflictError,
 )
 from interview_app.bootstrap import build_start_interview, launch_gateway
-from interview_app.domain.models import InterviewId, InterviewRecord, InterviewState
+from interview_app.domain.models import InterviewId, InterviewRecord, InterviewState, Speaker
 from interview_app.settings import LaunchSettings
 
 ACTIVE_INTERVIEW_HINT = (
@@ -99,6 +107,7 @@ async def join_existing(
 ) -> InterviewRecord:
     interview = await ensure_rejoinable(settings, interview_id)
     audio = SoundDeviceBackend()
+    await print_transcript_so_far(settings, interview_id)
     await _join(
         settings,
         interview,
@@ -107,6 +116,28 @@ async def join_existing(
         audio=audio,
     )
     return interview
+
+
+_SPEAKER_LABELS = {Speaker.INTERVIEWER: "Interviewer", Speaker.CANDIDATE: "You"}
+
+
+def print_transcript_line(line: TranscriptLine) -> None:
+    """Show one spoken turn; recognised speech and model text are untrusted, so it is escaped."""
+    text = sanitize_line(" ".join(line.text.split()))
+    print(f"[{_SPEAKER_LABELS[line.speaker]}] {text}", flush=True)
+
+
+async def print_transcript_so_far(settings: LaunchSettings, interview_id: InterviewId) -> None:
+    """Replay what was already said, so a rejoining candidate sees the conversation so far."""
+    database = SqliteDatabase(settings.sqlite_path)
+    await database.migrate()
+    result = await SqliteResultsReader(database).get_interview(interview_id, now=datetime.now(UTC))
+    turns = [turn for stage in result.stages for turn in stage.turns]
+    if not turns:
+        return
+    print("--- transcript so far ---")
+    for turn in turns:
+        print_transcript_line(TranscriptLine(speaker=turn.speaker, text=turn.text))
 
 
 async def _join(
@@ -130,8 +161,10 @@ async def _join(
             output_device=output_device,
         ),
         audio=audio,
+        on_transcript=print_transcript_line,
     )
     print(f"interview_id={interview.id}")
     print(f"room={interview.room_name}")
     print("candidate_audio=connecting")
+    print("--- live transcript ---", flush=True)
     await client.run()
