@@ -20,6 +20,7 @@ from interview_app.adapters.providers.voice import VoiceProviderBundle, build_vo
 from interview_app.adapters.sqlite import (
     SqliteDatabase,
     SqliteInterviewStore,
+    SqliteRecoveryStore,
     SqliteTranscriptStore,
 )
 from interview_app.application.handoff import TwoStageHandoffController
@@ -28,6 +29,7 @@ from interview_app.application.ports.interview_store import (
     InterviewNotFoundError,
     InterviewStore,
 )
+from interview_app.application.ports.recovery_store import RecoveryStateError
 from interview_app.domain.models import (
     HandoffPayload,
     InterviewId,
@@ -95,13 +97,31 @@ class LiveKitInterviewJob:
         if interview.room_name != context.job.room.name:
             raise InvalidJobMetadataError("Dispatch room does not match durable interview data.")
 
+        try:
+            await self._join_and_converse(context, interview, interviews, transcripts)
+        except BaseException:
+            # Production recovery is not wired yet, so a job that ends early cannot be resumed.
+            # Leaving the record active would block every later interview (R03); record the
+            # truth instead, then let the original failure or cancellation propagate.
+            await asyncio.shield(_record_early_job_exit(SqliteRecoveryStore(database), interview))
+            raise
+
+    async def _join_and_converse(
+        self,
+        context: JobContext,
+        interview: InterviewRecord,
+        interviews: SqliteInterviewStore,
+        transcripts: SqliteTranscriptStore,
+    ) -> None:
         await context.connect()
         room_sid = await context.room.sid
         if interview.room_sid != room_sid:
             raise InvalidJobMetadataError(
                 "Connected room SID does not match durable interview data."
             )
-        await context.wait_for_participant(identity=metadata.candidate_identity)
+        if interview.candidate_identity is None:
+            raise InvalidJobMetadataError("Durable interview data has no candidate identity.")
+        await context.wait_for_participant(identity=interview.candidate_identity)
 
         providers = build_voice_providers(self._configuration.settings)
         try:
@@ -175,6 +195,18 @@ class LiveKitInterviewJob:
             technical_target_seconds=self._configuration.settings.tech_target_seconds,
         )
         await coordinator.execute(interview)
+
+
+async def _record_early_job_exit(store: SqliteRecoveryStore, interview: InterviewRecord) -> None:
+    try:
+        await store.mark_incomplete(
+            interview.id,
+            reason="The interview job ended before the interview finished.",
+            at=SystemClock().utc_now(),
+        )
+    except RecoveryStateError:
+        # Already finished or already incomplete: there is nothing untrue left to correct.
+        return
 
 
 async def _close_providers(providers: VoiceProviderBundle) -> None:
