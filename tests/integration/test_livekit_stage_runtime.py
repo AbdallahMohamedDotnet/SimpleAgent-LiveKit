@@ -1,7 +1,7 @@
 import asyncio
 from collections.abc import Callable, Coroutine
 from datetime import UTC, datetime
-from typing import cast
+from typing import Any, cast
 
 from livekit import rtc
 from livekit.agents import Agent, AgentSession, room_io
@@ -34,10 +34,12 @@ class StubSession:
         self.shutdown_drain: bool | None = None
         self.fully_closed = False
         self._close_handler: Callable[[CloseEvent], None] | None = None
+        self._handlers: dict[str, Callable[[Any], None]] = {}
 
-    def on(self, event: str, callback: Callable[[CloseEvent], None]) -> None:
-        assert event == "close"
-        self._close_handler = callback
+    def on(self, event: str, callback: Callable[[Any], None]) -> None:
+        self._handlers[event] = callback
+        if event == "close":
+            self._close_handler = callback
 
     async def start(
         self,

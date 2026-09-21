@@ -1,4 +1,10 @@
-from interview_app.settings import ConfigurationError, ResultsSettings, ScoringSettings, Settings
+from interview_app.settings import (
+    ConfigurationError,
+    ControlSettings,
+    ResultsSettings,
+    ScoringSettings,
+    Settings,
+)
 
 
 def valid_values() -> dict[str, str]:
@@ -91,3 +97,22 @@ def test_results_settings_are_localhost_only() -> None:
         assert "between 0 and 65535" in str(error)
     else:
         raise AssertionError("An invalid results port must be rejected.")
+
+
+def test_control_settings_are_localhost_only_and_keep_secrets_redacted() -> None:
+    settings = ControlSettings.from_mapping(valid_values())
+    assert settings.host == "127.0.0.1"
+    assert settings.port == 8090
+    assert settings.agent_name == "interview-agent"
+    assert "local-secret" not in repr(settings)
+
+    for values in (
+        {**valid_values(), "CONTROL_HOST": "0.0.0.0"},
+        {**valid_values(), "CONTROL_PORT": "70000"},
+    ):
+        try:
+            ControlSettings.from_mapping(values)
+        except ConfigurationError:
+            pass
+        else:
+            raise AssertionError("Unsafe control console settings were accepted.")

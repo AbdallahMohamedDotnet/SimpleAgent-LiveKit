@@ -13,6 +13,7 @@ dependencies = [
 
 [project.scripts]
 interview = "interview_app.entrypoints.cli:main"
+interview-agent = "interview_app.entrypoints.agent_server:main"
 
 [build-system]
 requires = ["uv_build>=0.12.17,<0.13"]

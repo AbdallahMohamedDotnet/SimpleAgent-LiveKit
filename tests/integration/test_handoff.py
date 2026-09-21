@@ -52,6 +52,9 @@ def test_handoff_is_ordered_idempotent_and_scoring_independent(tmp_path: Path) -
             room_sid="RM_same",
             candidate_identity="candidate-generated-id",
         )
+        # The operator console persists the durable binding before dispatching
+        # the Agent Server job; begin must reuse that exact record.
+        await interviews.create(interview)
         hr_stage = await controller.begin(interview)
         try:
             await interviews.create(
@@ -111,5 +114,13 @@ def test_handoff_is_ordered_idempotent_and_scoring_independent(tmp_path: Path) -
         completed = await scoring
         assert completed is not None
         assert completed.state is ScoreTaskState.SUCCEEDED
+
+        completion, duplicate_completion = await asyncio.gather(
+            controller.finish(interview.id),
+            controller.finish(interview.id),
+        )
+        assert duplicate_completion == completion
+        assert completion.score_task.state is ScoreTaskState.PENDING
+        assert (await interviews.get(interview.id)).state is InterviewState.INTERVIEW_FINISHED
 
     asyncio.run(exercise())
