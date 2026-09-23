@@ -388,9 +388,9 @@ def test_cleanup_exact_boundary_removes_files_rows_and_blocks_late_worker(
         assert report.deleted == (expired_id,)
         assert report.failed == ()
         assert not (data_root / "expired-recording").exists()
-        assert (await SqliteInterviewStore(database).get(recent_id)).id == recent_id
+        assert (await SqliteInterviewStore(database).get(recent_id, now=NOW)).id == recent_id
         try:
-            await SqliteInterviewStore(database).get(expired_id)
+            await SqliteInterviewStore(database).get(expired_id, now=NOW)
         except InterviewNotFoundError:
             pass
         else:

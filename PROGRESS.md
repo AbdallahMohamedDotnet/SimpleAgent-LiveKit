@@ -1,6 +1,6 @@
 # Project completion audit
 
-Last reconciled: 21 September 2026.
+Last reconciled: 23 September 2026.
 
 This is the single authoritative implementation-status summary for `MAIN_PLAN.md`,
 `ARCHITECTURE.md`, and `plans/P00` through `plans/P10`. The plan files remain the normative
@@ -28,11 +28,11 @@ reported separately.
 
 | Phase | Implementation | Verification | Completed evidence | Remaining work |
 |---|---|---|---|---|
-| P00 compatibility | IN_PROGRESS | BLOCKED | Ubuntu 26.04.1 x86_64, CPython 3.14.4, uv 0.12.17, LiveKit CLI 2.18.2, LiveKit Server 1.13.7, local room/signaling, microphone publication, ElevenLabs STT, and OpenRouter generation were exercised. | Enable ElevenLabs billing/credits and verify TTS, speaker output, both voices, interruption, and real-media drain/capture. |
+| P00 compatibility | IN_PROGRESS | PARTIAL | Ubuntu 26.04.1 x86_64, CPython 3.14.4, uv 0.12.17, LiveKit CLI 2.18.2, LiveKit Server 1.13.7, local room/signaling, microphone publication, ElevenLabs STT, OpenRouter generation, provider-level TTS, and offline native echo processing were exercised. | Verify speaker output, echo cancellation, genuine interruption, both voices, and real-media drain/capture in a room. |
 | P01 scaffolding | IMPLEMENTED | PASSED | Packaged source layout, pinned lockfile, typed settings, boundaries, CLI, Ruff, strict mypy, pytest, and architecture checks pass. | None. |
 | P02 persistence/recording | IN_PROGRESS | PARTIAL | SQLite migrations, WAL/foreign keys/busy timeout, idempotent turns/events, immutable snapshots, atomic score enqueue, leases, WAV segments, manifests, checksums, gaps, and restart behavior pass. | Connect the recorder to observable candidate and agent room media; verify alignment and incomplete-media behavior with real audio. |
 | P03 lifecycle/handoff | IMPLEMENTED | PARTIAL | A real ROOM dispatch is claimed; durable identity is reused; two distinct `AgentSession` instances run sequentially; HR closes and enqueues scoring before Technical starts; final Technical scoring is enqueued. | Verify audible same-room handoff, final speech drain, and zero overlapping I/O ownership with both live voices. |
-| P04 voice/timing | IN_PROGRESS | PARTIAL | Fixed provider construction, live STT/opening LLM response, 300-second policies, answer completion, overrun, five-second idle policy, thinking hold, transcript persistence, and cleanup barriers pass applicable tests. | Verify TTS/playout, live deadline crossing, VAD/barge-in, idle reminder, thinking extension, and recovery timer behavior. |
+| P04 voice/timing | IN_PROGRESS | PARTIAL | Fixed provider construction, live STT/opening LLM response, 300-second policies, answer completion, overrun, five-second idle policy, thinking hold, transcript persistence, cleanup barriers, and terminal WebRTC acoustic echo-cancellation wiring pass applicable tests. | Verify TTS/playout, echo suppression and genuine barge-in in a room, live deadline crossing, idle reminder, thinking extension, and recovery timer behavior. |
 | P05 HR interview | IN_PROGRESS | PARTIAL | Versioned neutral HR instructions/rubric and evidence/injection boundaries pass; one opening HR question was generated live. | Complete a live behavioral stage and add/verify competency-turn tagging, completion control, and synthetic strong/weak/vague conversations. |
 | P06 technical interview | IN_PROGRESS | PARTIAL | Versioned rubric, attributed HR context, Junior-first progression, clarification, and one-hint policy pass offline. | Persist case/difficulty/hint decisions and verify live adaptive questioning, observed boundaries, and provider behavior. |
 | P07 scoring | IN_PROGRESS | PARTIAL | Durable worker, leases, retries/final failures, strict JSON/evidence validation, null-aware independent averages, idempotent writes, and results persistence pass offline. | Run live Sonnet 5 scoring/calibration, including strong, weak, assisted, incomplete, and deliberately slow HR scoring while Technical continues. |
@@ -55,7 +55,7 @@ Only P01 and P09 are fully implemented and verified. P03 is implemented but not 
 | R07 | PARTIAL | Dynamic prompt policy, Junior-first progression, and hint limits exist; durable live case/hint evidence is incomplete. |
 | R08 | PARTIAL | Deadline policy passes deterministic tests; live speech-boundary behavior is unverified. |
 | R09 | PARTIAL | English-only and English-neutral scoring rules are enforced in configuration/resources; full provider behavior is unverified. |
-| R10 | PARTIAL | Idle/thinking/interruption policies exist; live VAD, barge-in, and reminders are unverified. |
+| R10 | PARTIAL | Idle/thinking/interruption policies exist. The terminal client now filters speaker echo from microphone publication while retaining barge-in, and its native processor passes offline checks; audible echo suppression, live barge-in, and reminders remain unverified. |
 | R11 | PARTIAL | ElevenLabs STT now commits final transcripts and both distinct voices stream audio (provider-level live probes, 21 Sep 2026). In-room speaker playback is unverified. |
 | R12 | PARTIAL | OpenRouter Sonnet 5 generated the opening question live; live scoring and all-task verification remain. |
 | R13 | PARTIAL | HR snapshot/task enqueue precedes Technical and scoring owns no room I/O; slow live scoring concurrency is unverified. |
@@ -99,17 +99,19 @@ artifacts. The scoring worker has no room-audio access.
 
 ## Latest verification
 
-The following checks were executed against the current working tree on 21 September 2026:
+The following checks were executed against the current working tree on 23 September 2026:
 
 ```text
 UV_CACHE_DIR=.tools/uv-cache .tools/bin/uv run --frozen ruff format --check .
-  PASS: 128 files already formatted
+  PASS: 131 files already formatted
 UV_CACHE_DIR=.tools/uv-cache .tools/bin/uv run --frozen ruff check .
   PASS
 UV_CACHE_DIR=.tools/uv-cache .tools/bin/uv run --frozen mypy src
   PASS: 71 source files
 UV_CACHE_DIR=.tools/uv-cache .tools/bin/uv run --frozen pytest
-  PASS: 68 tests in 1.87 seconds
+  PASS: 78 tests in 2.08 seconds
+UV_CACHE_DIR=.tools/uv-cache .tools/bin/uv run --frozen python <native AEC frame smoke>
+  PASS: 20 far-end/near-end 10 ms frame pairs processed
 UV_CACHE_DIR=.tools/uv-cache .tools/bin/uv run --frozen python scripts/p09_results_smoke.py
   PASS: list/show/json/recording exit 0; unknown segment exits 3; injected ANSI escaped
 UV_CACHE_DIR=.tools/uv-cache .tools/bin/uv run --frozen python scripts/p10_offline_acceptance_smoke.py
@@ -159,6 +161,15 @@ Previously verified live evidence:
   before its interview finishes marks it `incomplete`. On the real database, startup logged
   `reconciled_interrupted_interviews=1 resumable=0` and the stuck interview became `incomplete`
   with reason "Interrupted process had no durable recovery checkpoint."
+
+Locally verified on 23 September 2026 (no provider request or physical audio device used):
+
+- The terminal client now supplies remote speaker frames to the pinned LiveKit/WebRTC audio
+  processor and filters microphone frames before RTC publication. Both streams use explicit 10 ms
+  frames, and the echo canceller receives the PortAudio input/output latency estimate.
+- The focused audio/transcript tests, Ruff, and strict mypy passed. A native processor smoke check
+  processed 20 far-end/near-end frame pairs without error. Physical speaker-to-microphone echo
+  suppression and genuine candidate interruption are not yet live-verified.
 
 ## Remaining completion path
 

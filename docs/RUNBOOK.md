@@ -282,3 +282,9 @@ as a shutdown procedure.
   silently switch model, STT/TTS provider, or voice.
 - `PortAudio is unavailable`: install the host PortAudio runtime, confirm the microphone/speaker
   are visible with `interview devices`, and rerun the terminal candidate command.
+- The interviewer repeatedly interrupts itself: the terminal client now feeds 10 ms speaker and
+  microphone frames through WebRTC acoustic echo cancellation before publishing microphone audio.
+  Restart both the agent server and candidate client so they load the change. Prefer headphones
+  when possible; very loud speakers, a microphone directly beside a speaker, or an incorrect OS
+  device route can still exceed software echo cancellation. Confirm `--input-device` names a real
+  microphone rather than a monitor/loopback source.

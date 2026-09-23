@@ -8,7 +8,7 @@ import logging
 from collections.abc import Callable
 from dataclasses import dataclass
 from types import ModuleType
-from typing import Any
+from typing import Any, Protocol
 
 from livekit import api, rtc
 
@@ -43,6 +43,33 @@ class CandidateConnection:
     identity: str
     input_device: str | int | None = None
     output_device: str | int | None = None
+
+
+class AudioProcessor(Protocol):
+    """Process full-duplex terminal audio before capture and playback."""
+
+    def set_stream_delay_ms(self, delay_ms: int) -> None: ...
+
+    def process_microphone(self, frame: rtc.AudioFrame) -> None: ...
+
+    def process_speaker(self, frame: rtc.AudioFrame) -> None: ...
+
+
+class WebRtcEchoCanceller:
+    """Remove far-end speaker audio from the microphone while retaining barge-in."""
+
+    def __init__(self, module: rtc.AudioProcessingModule | None = None) -> None:
+        self._module = module or rtc.AudioProcessingModule(echo_cancellation=True)
+        self.set_stream_delay_ms(0)
+
+    def set_stream_delay_ms(self, delay_ms: int) -> None:
+        self._module.set_stream_delay_ms(delay_ms)
+
+    def process_microphone(self, frame: rtc.AudioFrame) -> None:
+        self._module.process_stream(frame)
+
+    def process_speaker(self, frame: rtc.AudioFrame) -> None:
+        self._module.process_reverse_stream(frame)
 
 
 class SoundDeviceBackend:
@@ -134,14 +161,17 @@ class TerminalCandidateClient:
         connection: CandidateConnection,
         *,
         audio: SoundDeviceBackend | None = None,
+        audio_processor: AudioProcessor | None = None,
         on_transcript: Callable[[TranscriptLine], None] | None = None,
     ) -> None:
         self._connection = connection
         self._audio = audio or SoundDeviceBackend()
+        self._audio_processor = audio_processor or WebRtcEchoCanceller()
         self._on_transcript = on_transcript
         self._transcript_tasks: set[asyncio.Task[None]] = set()
         self._input_queue: asyncio.Queue[bytes] = asyncio.Queue(maxsize=100)
         self._playback_tasks: set[asyncio.Task[None]] = set()
+        self._input_latency_ms = 0
 
     async def run(self) -> None:
         room = rtc.Room()
@@ -173,6 +203,7 @@ class TerminalCandidateClient:
             channels=self.CHANNELS,
             blocksize=self.BLOCKSIZE,
         )
+        self._input_latency_ms = _stream_latency_ms(input_stream)
         capture_task: asyncio.Task[None] | None = None
         try:
             await room.connect(self._connection.url, token)
@@ -213,6 +244,7 @@ class TerminalCandidateClient:
                 num_channels=self.CHANNELS,
                 samples_per_channel=len(chunk) // 2,
             )
+            self._audio_processor.process_microphone(frame)
             await source.capture_frame(frame)
 
     def _on_transcription_stream(self, reader: rtc.TextStreamReader, sender_identity: str) -> None:
@@ -245,15 +277,16 @@ class TerminalCandidateClient:
     ) -> None:
         if track.kind != rtc.TrackKind.KIND_AUDIO:
             return
-        task = asyncio.create_task(self._play_track(track))
+        task = asyncio.create_task(self._play_track(track, input_latency_ms=self._input_latency_ms))
         self._playback_tasks.add(task)
         task.add_done_callback(self._playback_tasks.discard)
 
-    async def _play_track(self, track: rtc.Track) -> None:
+    async def _play_track(self, track: rtc.Track, *, input_latency_ms: int) -> None:
         stream = rtc.AudioStream(
             track,
             sample_rate=self.SAMPLE_RATE,
             num_channels=self.CHANNELS,
+            frame_size_ms=10,
             capacity=100,
         )
         output = self._audio.open_output(
@@ -261,11 +294,26 @@ class TerminalCandidateClient:
             sample_rate=self.SAMPLE_RATE,
             channels=self.CHANNELS,
         )
+        self._audio_processor.set_stream_delay_ms(input_latency_ms + _stream_latency_ms(output))
         try:
             output.start()
             async for event in stream:
+                # The echo canceller needs the exact audio sent to the physical speaker as its
+                # far-end reference before the microphone frame containing that echo arrives.
+                self._audio_processor.process_speaker(event.frame)
                 await asyncio.to_thread(output.write, bytes(event.frame.data))
         finally:
             output.stop()
             output.close()
             await stream.aclose()
+
+
+def _stream_latency_ms(stream: Any) -> int:
+    """Return a conservative PortAudio latency estimate for WebRTC AEC."""
+
+    latency = getattr(stream, "latency", 0.0)
+    if isinstance(latency, tuple):
+        latency = max(latency, default=0.0)
+    if not isinstance(latency, int | float) or latency < 0:
+        return 0
+    return round(latency * 1_000)

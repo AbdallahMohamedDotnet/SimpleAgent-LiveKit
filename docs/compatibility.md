@@ -166,7 +166,11 @@ end-of-speech. Both voices streamed audio through the production TTS objects.
 ## Recording, interruption, and timestamp limits
 
 A candidate microphone track was published, but the recording sink is not wired to observable
-room media and TTS produced no audio frames. A later media probe must distinguish captured input,
+room media. On 23 September 2026 the terminal participant added WebRTC acoustic echo cancellation:
+remote speaker frames are supplied as the 10 ms reverse stream and microphone frames are filtered
+before publication, using the PortAudio input/output latency estimate. The native processor and
+adapter wiring pass offline tests, but the reported self-interruption loop and genuine live
+barge-in still require an audible room retest. A later media probe must distinguish captured input,
 generated output, playback/track events, interruptions, canceled output, and what remote
 audibility cannot prove. Timestamp alignment must be measured against room/media events and
 persisted with explicit uncertainty.
